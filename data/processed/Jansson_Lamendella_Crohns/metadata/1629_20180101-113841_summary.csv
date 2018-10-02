@@ -1,0 +1,40 @@
+variable_name,class,summary
+bmi,character,n_unique 20 na_perc 0 unique_values 25 missing: not provided 21 24 31
+body_habitat,character,n_unique 1 na_perc 0 unique_values UBERON:feces
+body_product,character,n_unique 1 na_perc 0 unique_values UBERON:feces
+body_site,character,n_unique 1 na_perc 0 unique_values UBERON:feces
+calprotectin,character,n_unique 393 na_perc 0 unique_values 63.0 212.0 258.0 499.0 104.0
+cd_behavior,character,"n_unique 4 na_perc 0 unique_values Non-stricturing, non-penetrating (B1) not applicable Stricturing (B2) Penetrating (B3)"
+cd_location,character,n_unique 6 na_perc 0 unique_values Colonic (L2) not applicable Ileal (L1) Ileocolonic (L3) Ileal and Upper-GI (L1+L4)
+cd_resection,character,n_unique 3 na_perc 0 unique_values no not applicable yes
+collection_timestamp,character,n_unique 330 na_perc 0 unique_values 06/17/2010 09/16/2010 01/04/2011 04/07/2011 06/28/2011
+description,character,n_unique 683 na_perc 0 unique_values SubjectIBD001 SubjectIBD002 SubjectIBD003 SubjectIBD004 SubjectIBD005
+diagnosis_full,character,n_unique 5 na_perc 0 unique_values CD UC HC CC LC
+dna_extracted,character,n_unique 1 na_perc 0 unique_values true
+env_biome,character,n_unique 1 na_perc 0 unique_values urban biome
+env_feature,character,n_unique 1 na_perc 0 unique_values human-associated habitat
+env_material,character,n_unique 1 na_perc 0 unique_values feces
+env_package,character,n_unique 1 na_perc 0 unique_values human-gut
+fecal_date,character,n_unique 330 na_perc 0 unique_values 17-Jun-10 16-Sep-10 4-Jan-11 7-Apr-11 28-Jun-11
+geo_loc_name,character,n_unique 1 na_perc 0 unique_values Sweden
+host_common_name,character,n_unique 1 na_perc 0 unique_values human
+host_scientific_name,character,n_unique 1 na_perc 0 unique_values Homo sapiens
+host_subject_id,character,n_unique 137 na_perc 0 unique_values 1629:1 1629:19 1629:21 1629:31 1629:50
+host_taxid,integer,n_unique 1 na_perc 0 max 9606 min 9606
+ibd_subtype,character,n_unique 7 na_perc 0 unique_values CCD UC ICD_r ICD_nr HC
+latitude,numeric,mean 60.128 max 60.128 min 60.128 na_perc 0
+longitude,numeric,mean 18.644 max 18.644 min 18.644 na_perc 0
+patientnumber,integer,n_unique 137 na_perc 0 max 1018 min 1
+perianal_disease,character,n_unique 3 na_perc 0 unique_values no not applicable yes
+physical_specimen_location,character,n_unique 1 na_perc 0 unique_values LBNL
+physical_specimen_remaining,character,n_unique 1 na_perc 0 unique_values false
+qiita_study_id,integer,n_unique 1 na_perc 0 max 1629 min 1629
+sample_name,character,n_unique 683 na_perc 0 unique_values 1629.SubjectIBD001 1629.SubjectIBD002 1629.SubjectIBD003 1629.SubjectIBD004 1629.SubjectIBD005
+sample_type,character,n_unique 1 na_perc 0 unique_values stool
+scientific_name,character,n_unique 1 na_perc 0 unique_values human gut metagenome
+sex,character,n_unique 2 na_perc 0 unique_values male female
+study,character,n_unique 1 na_perc 0 unique_values IBD
+study_id,integer,n_unique 1 na_perc 0 max 1629 min 1629
+timepoint,integer,n_unique 10 na_perc 0 max 10 min 1
+uc_extent,character,n_unique 4 na_perc 0 unique_values not applicable Left sided (E2) Extensive (E3) Proctitis (E1)
+year_diagnosed,character,n_unique 43 na_perc 0 unique_values 1988 1998 1971 1980 2006
