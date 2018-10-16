@@ -1,3 +1,8 @@
+.rs.restartR()
+dir.create("results/1-create_phyloseq/", recursive = TRUE, showWarnings = FALSE)
+source("scripts/misc/constants.R")
+source("scripts/misc/helpers.R")
+
 l_phylo <- list()
 for(study in studies) {
   print(study)
