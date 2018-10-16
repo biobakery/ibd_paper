@@ -70,4 +70,3 @@ for(study in studies) {
   # dir.create(paste0("data/phyloseq/", study, "/"))
   # save(phylo, file = paste0("data/phyloseq/", study, "/", "species.RData"))
   # save(phylo_genus, file = paste0("data/phyloseq/", study, "/", "genus.RData"))
-}
