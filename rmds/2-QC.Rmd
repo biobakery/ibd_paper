@@ -1,0 +1,150 @@
+---
+title: "2-QC"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE}
+R.utils::sourceDirectory("functions/")
+setup(getwd())
+dir.output <- "results/2-QC/"
+dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+```
+```{r "aggregate datasets"}
+print(studies)
+l_species <- l_genera <- list()
+for(study in studies) {
+  load("data/phyloseq/BIDMC-FMT/species.RData")
+  load(paste0("data/phyloseq/",
+              study,
+              "/species.RData"))
+  load(paste0("data/phyloseq/",
+              study,
+              "/genera.RData"))
+  l_species[[study]] <- phylo
+  l_genera[[study]] <- phylo_genera
+}
+phylo_species <- combine_phyloseq(l_species)
+phylo_genera <- combine_phyloseq(l_genera)
+```
+Examine alpha diversity.
+```{r "alpha diversity across studies"}
+tb_tmp <- studies %>% 
+  purrr::map_dfr(function(study) {
+    tibble::tibble(
+      taxonamy = c("species",
+                   "genera"),
+      N_taxa = c(
+        phyloseq::ntaxa(l_species[[study]]),
+        phyloseq::ntaxa(l_genera[[study]])),
+      N_samples = c(
+        phyloseq::nsamples(l_species[[study]]),
+        phyloseq::nsamples(l_genera[[study]])),
+      median_log10LibSize = c(
+        l_species[[study]] %>% 
+          phyloseq::sample_sums() %>% 
+          add(1) %>% 
+          log10() %>% 
+          median(),
+        l_genera[[study]] %>% 
+          phyloseq::sample_sums() %>% 
+          add(1) %>% 
+          log10() %>% 
+          median()),
+      study = study
+    )
+  })
+p1 <- tb_tmp %>% 
+  ggplot(aes(x = N_samples,
+             y = N_taxa)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = study)) +
+  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
+             scales = "free_y")
+p2 <- tb_tmp %>% 
+  ggplot(aes(x = median_log10LibSize,
+             y = N_taxa)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = study)) +
+  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
+             scales = "free_y")
+print(p1)
+print(p2)
+plot_grid(p1, p2, nrow = 1) %>% 
+  cowplot_title("Alpha diversity across studies") %>% 
+  ggsave(file = paste0(dir.output, "fig_alphaDiversity.pdf"),
+         width = 15,
+         heigh = 5)
+```
+Examine uniquely present and absent taxa.
+```{r "dataset specific taxa"}
+df_all <- df_meta_all %>% cbind(t(otu_table(phylo_all_ra)@.Data)) %>% 
+  gather(key = genus, value = abundance, one_of(taxa_names(phylo_all)))
+tmp1 <- df_all %>% 
+  group_by(genus, dataset_name) %>% 
+  summarise(present = any(abundance > 0))
+tmp2 <- df_all %>% 
+  group_by(genus, dataset_name) %>% 
+  summarise(present = any(abundance > 0)) %>% 
+  group_by(genus) %>% 
+  summarise(npresent = sum(present))
+df_all <- df_all %>% left_join(tmp1) %>% left_join(tmp2)
+tmp1 <- df_all %>% 
+  group_by(genus, dataset_name) %>% 
+  summarise(notpresent = all(abundance == 0))
+tmp2 <- df_all %>% 
+  group_by(genus, dataset_name) %>% 
+  summarise(notpresent = all(abundance == 0)) %>% 
+  group_by(genus) %>% 
+  summarise(nnotpresent = sum(notpresent),
+            datasetnotpresent = dataset_name[notpresent][1])
+df_all <- df_all %>% 
+  left_join(tmp1) %>% 
+  left_join(tmp2)
+gplot <- df_all %>% 
+  filter(nnotpresent == 1) %>% 
+  group_by(genus) %>% 
+  summarise(abundance = mean(abundance),
+            datasetnotpresent = datasetnotpresent[1]) %>% 
+  ungroup() %>% 
+  arrange(datasetnotpresent, abundance) %>% 
+  mutate(genus = factor(genus, levels = genus)) %>% 
+  ggplot(aes(x = genus, y = abundance, color = datasetnotpresent)) +
+  geom_point() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip()
+ggsave(gplot, file = "data/phyloseq/fig3.pdf", height = 10, width = 15)
+gplot <- df_all %>% 
+  filter(npresent == 1, present == TRUE) %>% 
+  group_by(genus, dataset_name) %>% 
+  summarise(abundance = mean(abundance)) %>% 
+  ungroup() %>% 
+  filter(abundance > 2.5e-5) %>% 
+  arrange(dataset_name, abundance) %>% 
+  mutate(genus = factor(genus, levels = genus)) %>% 
+  ggplot(aes(x = genus, y = abundance, color = dataset_name)) +
+  geom_point() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  coord_flip()
+ggsave(gplot, file = "data/phyloseq/fig2.pdf", height = 10, width = 15)
+tmp2 %>% filter(npresent == 1) %>% 
+  `$`(genus)
+
+
+
+for(study in studies) {
+  phylo_tmp <- l_phylo[[study]]
+  otu_tmp <- otu_table(phylo_tmp)@.Data
+  meta_tmp <- 
+    tax_tmp <- tax_table(l_phylo[[study]])@.Data
+  otu_new <- matrix(NA, nrow = nrow(mat_tax_all), ncol = nsamples())
+}
+```
+

@@ -1,3 +1,9 @@
+lib.toLoad <- 
+  c("magrittr", # for easy operators
+    "ggplot2", "cowplot", # for plotting
+    "phyloseq" # for phyloseq objects
+  )
+lib.required <- c(lib.toLoad)
 studies <- c("BIDMC-FMT",
              "CS-PRISM",
              "Herfarth_CCFA_Microbiome_3B_combined",

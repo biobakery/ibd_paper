@@ -1,0 +1,8 @@
+# sample	original read count	reads mapping to OTU with taxonomy	reads mapping to unclassifed OTU	study
+G89776	1	0	0	CS-PRISM
+ERR2173085	1	0	0	Herfarth_CCFA_Microbiome_3B_combined
+ERR2173088	2	0	0	Herfarth_CCFA_Microbiome_3B_combined
+ERR2173224	5	0	0	Herfarth_CCFA_Microbiome_3B_combined
+ERR2173124	1	0	0	Herfarth_CCFA_Microbiome_3B_combined
+ERR2172896	1	0	0	Herfarth_CCFA_Microbiome_3B_combined
+ERR2172904	1	0	0	Herfarth_CCFA_Microbiome_3B_combined
