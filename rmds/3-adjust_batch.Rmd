@@ -1,41 +1,49 @@
 ---
-title: "2-QC"
+title: "3-adjust_batch"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
     df_print: paged
 ---
-- Aggregate studies into one phyloseq object.
-- Examine taxa distribution across studies (Alpha diveristy).
-- Uniquely present taxa.
-- Uniquely absent taxa.
-- Filtering.
-```{r setup}
+- Adjust batch within studies (if available).
+- Adjust batch across studies.
+- Overview of studies.
+  * Heatmap of top abundant taxa
+  * Ordination
+  * Permanova quantification
+```{r setup, echo = FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
-```{r setup2, message=FALSE, warning=FALSE}
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
 R.utils::sourceDirectory("functions/")
 setup(getwd())
-dir.output <- "results/2-QC/"
+dir.output <- "results/3-adjust_batch/"
 dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
 ```
-```{r "aggregate datasets"}
+```{r heatmap"}
 print(studies)
-l_species <- l_genera <- list()
-for(study in studies) {
-  load(paste0("data/phyloseq/",
-              study,
-              "/species.RData"))
-  load(paste0("data/phyloseq/",
-              study,
-              "/genera.RData"))
-  l_species[[study]] <- phylo
-  
-  l_genera[[study]] <- phylo_genera
-}
-phylo_species <- combine_phyloseq(l_species)
-phylo_genera <- combine_phyloseq(l_genera)
+load("data/phyloseq/species_filtered.RData")
+tb_long <- phylo_species_filtered %>% 
+  transform_sample_counts(tss) %>% 
+  phyloseq_to_tb()
+tb_rankFeature <- tb_long %>% 
+  dplyr::group_by(feature) %>% 
+  dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+  dplyr::mutate(rank = rank(-mean_abundance, ties.method = "min")) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(feature_select = rank <= 50)
+tb_heatmap <- tb_long %>% 
+  dplyr::left_join(tb_rankFeature, by = "feature") %>% 
+  dplyr::filter(feature_select)
+
+library(gplots)
+mat_heatmap <- tb_heatmap %>% 
+  dplyr::select(feature, rownames, abundance) %>% 
+  tidyr::spread(key = rownames, value = abundance) %>% 
+  tibble::column_to_rownames("feature") %>% 
+  as.matrix()
+heatmap.2(mat_heatmap)
 ```
 Examine alpha diversity.
 ```{r "alpha diversity across studies"}

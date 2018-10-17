@@ -3764,14 +3764,13 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">1-create_phyloseq</h1>
 <h4 class="author"><em>Siyuan Ma</em></h4>
-<h4 class="date"><em>17 October, 2018</em></h4>
+<h4 class="date"><em>18 October, 2018</em></h4>
 
 </div>
 
 
 <pre class="r"><code>knitr::opts_knit$set(root.dir = normalizePath(&quot;..&quot;))</code></pre>
-<pre class="r"><code>source(&quot;functions/setup.R&quot;)
-source(&quot;functions/helpers.R&quot;)
+<pre class="r"><code>R.utils::sourceDirectory(&quot;functions/&quot;)
 setup(getwd())
 dir.output &lt;- &quot;results/1-create_phyloseq/&quot;
 dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)</code></pre>
@@ -3825,19 +3824,19 @@ lib_size %&gt;%
   dplyr::filter(sample %&gt;% 
                   is_in(read_counts$`# sample`) %&gt;% 
                   not) %&gt;% 
-  readr::write_tsv(paste0(dir.output, &quot;libSizeSanityCheck1.tsv&quot;)) %&gt;% 
+  readr::write_tsv(paste0(dir.output, &quot;tb_libSizeSanityCheck1.tsv&quot;)) %&gt;% 
   DT::datatable()</code></pre>
 <pre><code>## Warning: package 'bindrcpp' was built under R version 3.4.4</code></pre>
-<div id="htmlwidget-32351d8232b3dcf11f92" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-32351d8232b3dcf11f92">{"x":{"filter":"none","data":[[],[],[],[]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>study<\/th>\n      <th>sample<\/th>\n      <th>lib.size<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":3},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-d0e0ac542a9c101c4148" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-d0e0ac542a9c101c4148">{"x":{"filter":"none","data":[[],[],[],[]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>study<\/th>\n      <th>sample<\/th>\n      <th>lib.size<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":3},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 <pre class="r"><code>read_counts %&gt;%
   dplyr::filter(`# sample` %&gt;% 
                   is_in(lib_size$sample) %&gt;% 
                   not) %&gt;% 
-  readr::write_tsv(paste0(dir.output, &quot;libSizeSanityCheck2.tsv&quot;)) %&gt;% 
+  readr::write_tsv(paste0(dir.output, &quot;tb_libSizeSanityCheck2.tsv&quot;)) %&gt;% 
   DT::datatable() # samples that aren't present in the OTU table are because of low read counts</code></pre>
-<div id="htmlwidget-7ddf51e1b57c2a37a4e7" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-7ddf51e1b57c2a37a4e7">{"x":{"filter":"none","data":[["1","2","3","4","5","6","7"],["G89776","ERR2173085","ERR2173088","ERR2173224","ERR2173124","ERR2172896","ERR2172904"],[1,1,2,5,1,1,1],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],["CS-PRISM","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th># sample<\/th>\n      <th>original read count<\/th>\n      <th>reads mapping to OTU with taxonomy<\/th>\n      <th>reads mapping to unclassifed OTU<\/th>\n      <th>study<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":[2,3,4]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-7895bc05aa5b8c4defae" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-7895bc05aa5b8c4defae">{"x":{"filter":"none","data":[["1","2","3","4","5","6","7"],["G89776","ERR2173085","ERR2173088","ERR2173224","ERR2173124","ERR2172896","ERR2172904"],[1,1,2,5,1,1,1],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],["CS-PRISM","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined","Herfarth_CCFA_Microbiome_3B_combined"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th># sample<\/th>\n      <th>original read count<\/th>\n      <th>reads mapping to OTU with taxonomy<\/th>\n      <th>reads mapping to unclassifed OTU<\/th>\n      <th>study<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":[2,3,4]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 <pre class="r"><code>lib_size &lt;- lib_size %&gt;% 
   dplyr::left_join(read_counts,
                    c(&quot;study&quot; = &quot;study&quot;,
@@ -3892,7 +3891,9 @@ for(study in studies) {
   phylo &lt;- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
-    phyloseq::tax_table(biom))
+    phyloseq::tax_table(biom)) %&gt;% 
+    prune_taxaSamples()
+  print(phylo)
   phylo_genera &lt;- phyloseq::tax_glom(phylo, &quot;Rank6&quot;)
   l_biom %&gt;% sapply(function(x) colnames(phyloseq::tax_table(x))[6]) %&gt;% unique
   dir.create(paste0(&quot;data/phyloseq/&quot;, study, &quot;/&quot;), 
@@ -3903,24 +3904,64 @@ for(study in studies) {
 }</code></pre>
 <pre><code>## [1] &quot;BIDMC-FMT&quot;
 ## 21 21 21 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 414 taxa and 21 samples ]
+## sample_data() Sample Data:       [ 21 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 414 taxa by 7 taxonomic ranks ]
 ## [1] &quot;CS-PRISM&quot;
 ## 687 677 677 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 1845 taxa and 677 samples ]
+## sample_data() Sample Data:       [ 677 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 1845 taxa by 7 taxonomic ranks ]
 ## [1] &quot;Herfarth_CCFA_Microbiome_3B_combined&quot;
 ## 866 939 861 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 2317 taxa and 835 samples ]
+## sample_data() Sample Data:       [ 835 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 2317 taxa by 7 taxonomic ranks ]
 ## [1] &quot;HMP2&quot;
 ## 178 183 178 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 1402 taxa and 178 samples ]
+## sample_data() Sample Data:       [ 178 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 1402 taxa by 7 taxonomic ranks ]
 ## [1] &quot;Jansson_Lamendella_Crohns&quot;
 ## 683 683 683 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 3953 taxa and 683 samples ]
+## sample_data() Sample Data:       [ 683 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 3953 taxa by 7 taxonomic ranks ]
 ## [1] &quot;jansson_twins_ibd&quot;
 ## 118 114 114 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 452 taxa and 114 samples ]
+## sample_data() Sample Data:       [ 114 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 452 taxa by 7 taxonomic ranks ]
 ## [1] &quot;LSS-PRISM&quot;
 ## 99 99 99 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 822 taxa and 99 samples ]
+## sample_data() Sample Data:       [ 99 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 822 taxa by 7 taxonomic ranks ]
 ## [1] &quot;MucosalIBD&quot;
 ## 428 428 428 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 1733 taxa and 428 samples ]
+## sample_data() Sample Data:       [ 428 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 1733 taxa by 7 taxonomic ranks ]
 ## [1] &quot;Pouchitis&quot;
 ## 652 652 652 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 1374 taxa and 628 samples ]
+## sample_data() Sample Data:       [ 628 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 1374 taxa by 7 taxonomic ranks ]
 ## [1] &quot;RISK&quot;
-## 1614 1614 1614</code></pre>
+## 1614 1614 1614 
+## phyloseq-class experiment-level object
+## otu_table()   OTU Table:         [ 2239 taxa and 1614 samples ]
+## sample_data() Sample Data:       [ 1614 samples by 49 sample variables ]
+## tax_table()   Taxonomy Table:    [ 2239 taxa by 7 taxonomic ranks ]</code></pre>
 
 
 

@@ -17,6 +17,97 @@ tax_table2 <- function(phylo) {
   phyloseq::tax_table(phylo)@.Data
 }
 
+# create long format tibble object given phyloseq, aggregating otu table,
+# metadata, and tax table together
+phyloseq_to_tb <- function(phylo) {
+  mat_otu <- otu_table2(phylo)
+  df_metadata <- sample_data2(phylo)
+  mat_tax <- tax_table2(phylo)
+  # No conflicting column names between metadata, tax table, 
+  # and "featuer", "rownames", and "abundance"
+  check_commonNames <- c(
+    intersect(c("feature", "rownames", "abundance"), colnames(df_metadata)) %>% 
+      length() %>% is_greater_than(1),
+    intersect(c("feature", "rownames", "abundance"), colnames(mat_tax)) %>% 
+      length() %>% is_greater_than(1),
+    intersect(colnames(df_metadata), colnames(mat_tax)) %>% 
+      length() %>% is_greater_than(1)
+  )
+  if(any(check_commonNames))
+    stop("There are overlapping column names, cannot proceed!")
+  
+  t(mat_otu) %>% 
+    tibble::as_tibble(rownames = "rownames") %>% 
+    tidyr::gather(key = feature,
+                  value = abundance,
+                  - rownames) %>% 
+    dplyr::left_join(
+      mat_tax %>% 
+        tibble::as_tibble(rownames = "feature"),
+      by = "feature"
+    ) %>% 
+    dplyr::left_join(
+      df_metadata %>% 
+        tibble::as_tibble(rownames = "rownames"),
+      by = "rownames"
+    )
+}
+
+# phyloseq's prune_samples function changes column names
+prune_samples2 <- function(samples, x) {
+  if(class(samples) != "logical")
+    stop("samples must be TRUE/FALSE")
+  if(length(samples) != phyloseq::nsamples(x))
+    stop("samples and phyloseq dimensions don't agree!")
+  phyloseq(
+    phyloseq::otu_table(x)[, samples],
+    sample_data(sample_data2(x)[samples, ]),
+    phyloseq::tax_table(x)
+  )
+}
+
+# This function is to trim the phyloseq object so that won't run into empty taxa/samples
+# which is prone to happenning whenever a phyloseq object is subsetted in any way!
+prune_taxaSamples <- function(phylo, 
+                              flist = kOverA2(k = 1, A = 0), # default non-empty pruning
+                              max.iter = 3
+                              ) {
+  i.iter <- 1
+  taxa.ind <- apply(otu_table2(phylo), 1, flist)
+  if (ntaxa(phylo) != length(taxa.ind)) {
+    stop("Logic error in applying function(s). Logical result not same length as ntaxa(physeq)")
+  }
+  while(TRUE) {
+    if(i.iter > max.iter) 
+      stop("Something went wrong! Max iteration exceeded!")
+    phylo <- phyloseq::prune_taxa(taxa.ind, phylo)
+    samples.ind <- phyloseq::sample_sums(phylo) > 0
+    phylo <- prune_samples2(samples.ind, phylo)
+    taxa.ind <- apply(otu_table2(phylo), 1, flist)
+    if(all(taxa.ind)) return(phylo)
+    i.iter <- i.iter + 1
+  }
+}
+# Helper function for filtering taxa
+# k = 0 = no filtering
+# A = 0, k = 1 = non-empty filtering
+# A = 0, k = x>1 = presence filtering
+# A = y>0, k = x>1 = abundance filtering
+kOverA2 <- function(k = 1, A = 0) {
+  if(A >= 1) stop("Filtering is for relative abundance!")
+  function(x) {
+    if(any(is.na(x))) stop("Missing values in the data!")
+    sum(tss(x) > A) >= k
+  } 
+}
+
+# Helper function for getting relative abundance
+# Useful when possible samples are all zero
+tss <- function(x) {
+  if(all(x == 0)) return(x)
+  return(x / sum(x))
+}
+
 # This funciton is to aggregate a list of (uniformly prepared) phyloseq objects into
 # one single object
 combine_phyloseq <- function(l_phylo) {
@@ -26,13 +117,23 @@ combine_phyloseq <- function(l_phylo) {
   # Check taxonamy tables are consistent; create overall taxonamy table
   l_tax <- l_phylo %>% 
     purrr::map(tax_table2)
-  for(i in 1:(length(l_tax) - 1)) {
-    if(all(colnames(l_tax[[1]]) == colnames(l_tax[[i + 1]])) %>% 
-       not())
-      stop("Not all phyloseq objects have the same taxonomic levels!")
-  }
+  ranks1 <- l_tax %>% 
+    purrr::map_dbl(~ is.na(.x) %>% 
+                     not %>% 
+                     apply(2, all) %>% 
+                     sum)
+  ranks2 <- l_tax %>% 
+    purrr::map_dbl(~ is.na(.x) %>% 
+                     not %>% 
+                     apply(2, any) %>% 
+                     sum)
+  if(!all(ranks1 == ranks2)) 
+    stop("Check the tax tables - some columns have sporadic missing values!")
+  if(dplyr::n_distinct(ranks1) > 1)
+    stop("Not all phyloseq objects have the same taxonomy level!")
+
   tax_all <- l_tax %>% 
-    purrr::map(.f = apply, MARGIN=1, FUN=paste, collapse = "|") %>% 
+    purrr::map(apply, MARGIN=1, FUN=paste, collapse = "|") %>% 
     unlist() %>% 
     unique()
   mat_tax_all <- tax_all %>% 

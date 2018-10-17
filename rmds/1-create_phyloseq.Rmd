@@ -56,13 +56,13 @@ lib_size %>%
   dplyr::filter(sample %>% 
                   is_in(read_counts$`# sample`) %>% 
                   not) %>% 
-  readr::write_tsv(paste0(dir.output, "libSizeSanityCheck1.tsv")) %>% 
+  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck1.tsv")) %>% 
   DT::datatable()
 read_counts %>%
   dplyr::filter(`# sample` %>% 
                   is_in(lib_size$sample) %>% 
                   not) %>% 
-  readr::write_tsv(paste0(dir.output, "libSizeSanityCheck2.tsv")) %>% 
+  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck2.tsv")) %>% 
   DT::datatable() # samples that aren't present in the OTU table are because of low read counts
 lib_size <- lib_size %>% 
   dplyr::left_join(read_counts,
@@ -118,7 +118,8 @@ for(study in studies) {
   phylo <- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
-    phyloseq::tax_table(biom))
+    phyloseq::tax_table(biom)) %>% 
+    prune_taxaSamples()
   print(phylo)
   phylo_genera <- phyloseq::tax_glom(phylo, "Rank6")
   l_biom %>% sapply(function(x) colnames(phyloseq::tax_table(x))[6]) %>% unique
