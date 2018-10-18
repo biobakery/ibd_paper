@@ -185,6 +185,122 @@ mat_tax_tmp %>%
   tibble::as_tibble(rownames = "otu_cluster") %>% 
   dplyr::filter(Rank7 == "s__blattae")
 ```
+```{r "Filter samples"}
+tb_libSize <- phylo_species %>% sample_sums() %>% 
+  tibble::tibble(rownames = phyloseq::sample_names(phylo_species),
+                 lib_size = .) %>% 
+  dplyr::left_join(sample_data2(phylo_species) %>% 
+                     tibble::as_tibble(rownames = "rownames") %>% 
+                     dplyr::select(rownames = rownames,
+                                   dataset_name = dataset_name),
+                   by = "rownames")
+p1 <- tb_libSize %>% 
+  ggplot(aes(x = dataset_name, fill = (lib_size > 3000))) +
+  geom_bar(stat = "count") +
+  rotate_xaxis(30) +
+  ggtitle("Cutoff = 3000")
+p2 <- tb_libSize %>% 
+  ggplot(aes(x = dataset_name, fill = (lib_size > 1000))) +
+  geom_bar(stat = "count") +
+  rotate_xaxis(30) +
+  ggtitle("Cutoff = 1000")
+plot_grid(p1, p2, nrow = 2) %>% 
+  print() %>% 
+  ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
+         width = 10, 
+         height = 10)
+```
+
+Some sanity check on library sizes.
+```{r "check lib sizes", message=FALSE}
+lib_size <- studies %>% 
+  purrr::map_dfr(~ tibble::tibble(
+    study = .x,
+    sample = l_biom %>% 
+      extract2(.x) %>% 
+      phyloseq::sample_names(),
+    lib.size = l_biom %>% 
+      extract2(.x) %>% 
+      phyloseq::sample_sums()
+  ))  
+read_counts <- studies %>% 
+  purrr::map_dfr(~ paste0(dir_processed, 
+                          "processed/", 
+                          .x, 
+                          "/16s/all_samples_read_counts.tsv") %>% 
+                   readr::read_tsv(col_types = "cddd") %>% 
+                   dplyr::mutate(study = .x)) 
+lib_size %>% 
+  dplyr::filter(sample %>% 
+                  is_in(read_counts$`# sample`) %>% 
+                  not) %>% 
+  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck1.tsv")) %>% 
+  DT::datatable()
+read_counts %>%
+  dplyr::filter(`# sample` %>% 
+                  is_in(lib_size$sample) %>% 
+                  not) %>% 
+  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck2.tsv")) %>% 
+  DT::datatable() # samples that aren't present in the OTU table are because of low read counts
+lib_size <- lib_size %>% 
+  dplyr::left_join(read_counts,
+                   c("study" = "study",
+                     "sample" = "# sample"))
+lib_size %>% 
+  ggplot(aes(x = lib.size, y = `reads mapping to OTU with taxonomy`)) +
+  geom_point() +
+  facet_wrap(~study) # the two are equal
+lib_size %>% 
+  tidyr::gather(key = "Type of read count",
+                value = "N",
+                "original read count",
+                "lib.size",
+                `reads mapping to OTU with taxonomy`,
+                `reads mapping to unclassifed OTU`,
+                factor_key = TRUE) %>% 
+  ggplot(aes(x = study, y = log10(N + 1), color = `Type of read count`)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
+       width = 10,
+       height = 8)
+```
+
+```{r "sanity check for jansson_twins_ibd"}
+phylo_pipeline <- l_species[["jansson_twins_ibd"]]
+phylo_qiita <- phyloseq::import_biom("~/Downloads/otu_table (1).biom")
+phyloseq::sample_names(phylo_qiita) <- phyloseq::sample_names(phylo_qiita) %>% 
+  stringr::str_replace_all(stringr::fixed("."), "_")
+libSize_pipeline <- phyloseq::sample_sums(phylo_pipeline)
+libSize_qiita <- phyloseq::sample_sums(phylo_qiita)
+tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
+               libSize_pipeline = libSize_pipeline) %>% 
+  dplyr::left_join(
+    tibble::tibble(samples = phyloseq::sample_names(phylo_qiita),
+                   libSize_qiita = libSize_qiita),
+    by = "samples"
+  ) %>% 
+  ggplot(aes(x = libSize_pipeline,
+             y = libSize_qiita)) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  geom_point()
+tb_libSize_tmp <- tb_libSize %>% 
+  dplyr::filter(dataset_name == "jansson_twins_ibd") %>% 
+  dplyr::left_join(tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
+                                  libSize_pipeline = libSize_pipeline),
+                   by = c("rownames" = "samples"))
+tb_libSize_tmp %>% 
+  ggplot(aes(x = lib_size,
+             y = libSize_pipeline)) +
+  geom_point()
+otu1 <- otu_table2(phylo_species)[, "1070_CCD_p11_dc19"]
+sum(otu1)
+otu2 <- otu_table(phylo_pipeline)[, "1070_CCD_p11_dc19"]
+sum(otu2)
+test_taxTable <- tax_table2(phylo_pipeline)
+test_species <- test_taxTable %>% apply(1, paste, collapse = "|")
+table(test_species)
+```
 ```{r "Filter taxa"}
 phylo_species_filtered <- phylo_species %>% 
   prune_taxaSamples(kOverA2(k = phyloseq::nsamples(phylo_species) * 0.01,
@@ -194,5 +310,3 @@ phylo_genera_filtered <- phylo_species_filtered %>%
 save(phylo_species_filtered, file = "data/phyloseq/species_filtered.RData")
 save(phylo_genera_filtered, file = "data/phyloseq/genera_filtered.RData")
 ```
-
-

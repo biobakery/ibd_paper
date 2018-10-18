@@ -53,41 +53,32 @@ phyloseq_to_tb <- function(phylo) {
     )
 }
 
-# phyloseq's prune_samples function changes column names
-prune_samples2 <- function(samples, x) {
-  if(class(samples) != "logical")
-    stop("samples must be TRUE/FALSE")
-  if(length(samples) != phyloseq::nsamples(x))
-    stop("samples and phyloseq dimensions don't agree!")
-  phyloseq(
-    phyloseq::otu_table(x)[, samples],
-    sample_data(sample_data2(x)[samples, ]),
-    phyloseq::tax_table(x)
-  )
-}
-
 # This function is to trim the phyloseq object so that won't run into empty taxa/samples
 # which is prone to happenning whenever a phyloseq object is subsetted in any way!
 prune_taxaSamples <- function(phylo, 
-                              flist = kOverA2(k = 1, A = 0), # default non-empty pruning
+                              flist_taxa = kOverA2(k = 1, A = 0), # default non-empty pruning
+                              flist_samples = kOverA2(k = 1, A = 0), # default non-empty pruning
                               max.iter = 3
                               ) {
   i.iter <- 1
-  taxa.ind <- apply(otu_table2(phylo), 1, flist)
-  if (ntaxa(phylo) != length(taxa.ind)) {
+  taxa.ind <- apply(otu_table2(phylo), 1, flist_taxa)
+  samples.ind <- apply(otu_table2(phylo), 2, flist_samples)
+  if (phyloseq::ntaxa(phylo) != length(taxa.ind) | 
+      phyloseq::nsamples(phylo) != length(samples.ind)) {
     stop("Logic error in applying function(s). Logical result not same length as ntaxa(physeq)")
   }
   while(TRUE) {
     if(i.iter > max.iter) 
       stop("Something went wrong! Max iteration exceeded!")
     phylo <- phyloseq::prune_taxa(taxa.ind, phylo)
-    samples.ind <- phyloseq::sample_sums(phylo) > 0
-    phylo <- prune_samples2(samples.ind, phylo)
-    taxa.ind <- apply(otu_table2(phylo), 1, flist)
+    samples.ind <- apply(otu_table2(phylo), 2, flist_samples)
+    phylo <- phyloseq::prune_samples(samples.ind, phylo)
+    taxa.ind <- apply(otu_table2(phylo), 1, flist_taxa)
     if(all(taxa.ind)) return(phylo)
     i.iter <- i.iter + 1
   }
 }
+
 # Helper function for filtering taxa
 # k = 0 = no filtering
 # A = 0, k = 1 = non-empty filtering

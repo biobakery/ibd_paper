@@ -6,19 +6,19 @@ output:
   html_document:
     df_print: paged
 ---
-```{r setup}
+- Load .biom files from 16s workflow.
+- Load curated metadata. 
+- Match samples between otu table and metadata. Create otu cluster/species/genera level phyloseq objects.
+```{r setup, echo=FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
-```{r setup2, message=FALSE, warning=FALSE}
+```{r setup2, message=FALSE, warning=FALSE, echo=FALSE}
 R.utils::sourceDirectory("functions/")
 setup(getwd())
 dir.output <- "results/1-create_phyloseq/"
 dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
 ```
-- Examine library sizes.
-- Load .biom files from 16s workflow.
-- Load curated metadata.
-- Match samples between otu table and metadata, create species (otu cluster) level and genera level phyloseq objects.
+# Load .biom files from 16s workflow
 ```{r "load bioms"}
 print(studies)
 l_biom <- list()
@@ -33,61 +33,8 @@ for(study in studies) {
   l_biom[[study]] <- biom
 }
 ```
-Some sanity check on library sizes.
-```{r "check lib sizes", message=FALSE}
-lib_size <- studies %>% 
-  purrr::map_dfr(~ tibble::tibble(
-    study = .x,
-    sample = l_biom %>% 
-      extract2(.x) %>% 
-      phyloseq::sample_names(),
-    lib.size = l_biom %>% 
-      extract2(.x) %>% 
-      phyloseq::sample_sums()
-  ))  
-read_counts <- studies %>% 
-  purrr::map_dfr(~ paste0(dir_processed, 
-                          "processed/", 
-                          .x, 
-                          "/16s/all_samples_read_counts.tsv") %>% 
-                   readr::read_tsv(col_types = "cddd") %>% 
-                   dplyr::mutate(study = .x)) 
-lib_size %>% 
-  dplyr::filter(sample %>% 
-                  is_in(read_counts$`# sample`) %>% 
-                  not) %>% 
-  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck1.tsv")) %>% 
-  DT::datatable()
-read_counts %>%
-  dplyr::filter(`# sample` %>% 
-                  is_in(lib_size$sample) %>% 
-                  not) %>% 
-  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck2.tsv")) %>% 
-  DT::datatable() # samples that aren't present in the OTU table are because of low read counts
-lib_size <- lib_size %>% 
-  dplyr::left_join(read_counts,
-                   c("study" = "study",
-                     "sample" = "# sample"))
-lib_size %>% 
-  ggplot(aes(x = lib.size, y = `reads mapping to OTU with taxonomy`)) +
-  geom_point() +
-  facet_wrap(~study) # the two are equal
-lib_size %>% 
-  tidyr::gather(key = "Type of read count",
-                value = "N",
-                "original read count",
-                "lib.size",
-                `reads mapping to OTU with taxonomy`,
-                `reads mapping to unclassifed OTU`,
-                factor_key = TRUE) %>% 
-  ggplot(aes(x = study, y = log10(N + 1), color = `Type of read count`)) +
-  geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
-       width = 10,
-       height = 8)
-```
-Create phyloseq objects.
+
+# Load cuarated metadata, match samples, create phyloseq objects.
 ```{r "create phyloseq", message=FALSE, warning=FALSE}
 template <- paste0(dir_processed, "data/template.csv") %>% 
   readr::read_csv()
@@ -105,28 +52,30 @@ for(study in studies) {
                      "/metadata/metadata.txt") %>%
     readr::read_tsv(col_types = column_setup)
   
-  sample_common <- intersect(metadata$`16S_sample_accession`,
+  sample_common <- intersect(metadata$sample_accession_16S,
                              phyloseq::sample_names(biom))
   cat(nrow(metadata),
       phyloseq::nsamples(biom),
       length(sample_common), "\n")
   
   metadata <- metadata %>% 
-    dplyr::filter(`16S_sample_accession` %in% sample_common) %>%
+    dplyr::filter(sample_accession_16S %in% sample_common) %>%
     as.data.frame()
-  rownames(metadata) <- metadata$`16S_sample_accession`
+  rownames(metadata) <- metadata$sample_accession_16S
   phylo <- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
     phyloseq::tax_table(biom)) %>% 
     prune_taxaSamples()
+  print(biom)
   print(phylo)
-  phylo_genera <- phyloseq::tax_glom(phylo, "Rank6")
-  l_biom %>% sapply(function(x) colnames(phyloseq::tax_table(x))[6]) %>% unique
   dir.create(paste0("data/phyloseq/", study, "/"), 
              recursive = TRUE, 
              showWarnings = TRUE)
-  save(phylo, file = paste0("data/phyloseq/", study, "/species.RData"))
+  phylo_species <- phyloseq::tax_glom(phylo, "Rank7")
+  phylo_genera <- phyloseq::tax_glom(phylo_species, "Rank6")
+  save(phylo, file = paste0("data/phyloseq/", study, "/otus.RData"))
+  save(phylo_species, file = paste0("data/phyloseq/", study, "/species.RData"))
   save(phylo_genera, file = paste0("data/phyloseq/", study, "/genera.RData"))
 }
 ```
