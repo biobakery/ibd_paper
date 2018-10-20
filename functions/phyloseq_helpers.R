@@ -123,8 +123,12 @@ combine_phyloseq <- function(l_phylo) {
   if(dplyr::n_distinct(ranks1) > 1)
     stop("Not all phyloseq objects have the same taxonomy level!")
 
-  tax_all <- l_tax %>% 
-    purrr::map(apply, MARGIN=1, FUN=paste, collapse = "|") %>% 
+  l_tax_all <- l_tax %>% 
+    purrr::map(apply, MARGIN=1, FUN=paste, collapse = "|") 
+  if(l_tax_all %>% 
+     purrr::map_lgl(~anyDuplicated(.x) > 0) %>% 
+     any) stop("Taxonamy needs to be uniquely mappable to features to aggregate!")
+  tax_all <- l_tax_all %>% 
     unlist() %>% 
     unique()
   mat_tax_all <- tax_all %>% 

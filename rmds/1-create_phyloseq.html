@@ -236,7 +236,7 @@ display: none;
 padding: 0 4px 0 4px;
 }
 .pagedtable .even {
-background-color: #fcfcfc;
+background-color: rgba(140, 140, 140, 0.1);
 }
 .pagedtable-padding-col {
 display: none;
@@ -1547,6 +1547,9 @@ img {
 .tabbed-pane {
   padding-top: 12px;
 }
+.html-widget {
+  margin-bottom: 20px;
+}
 button.code-folding-btn:focus {
   outline: none;
 }
@@ -1557,14 +1560,74 @@ button.code-folding-btn:focus {
 <div class="container-fluid main-container">
 
 <!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
 <script>
 $(document).ready(function () {
   window.buildTabsets("TOC");
 });
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
 </script>
 
 <!-- code folding -->
-
 
 
 
@@ -1576,7 +1639,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">1-create_phyloseq</h1>
 <h4 class="author"><em>Siyuan Ma</em></h4>
-<h4 class="date"><em>18 October, 2018</em></h4>
+<h4 class="date"><em>19 October, 2018</em></h4>
 
 </div>
 
@@ -1586,6 +1649,13 @@ $(document).ready(function () {
 <li>Load curated metadata.</li>
 <li>Match samples between otu table and metadata. Create otu cluster/species/genera level phyloseq objects.</li>
 </ul>
+<pre><code>## Warning: package 'ggplot2' was built under R version 3.4.4</code></pre>
+<pre><code>## Warning: package 'cowplot' was built under R version 3.4.3</code></pre>
+<pre><code>## 
+## Attaching package: 'cowplot'</code></pre>
+<pre><code>## The following object is masked from 'package:ggplot2':
+## 
+##     ggsave</code></pre>
 <div id="load-.biom-files-from-16s-workflow" class="section level1">
 <h1>Load .biom files from 16s workflow</h1>
 <pre class="r"><code>print(studies)</code></pre>
