@@ -308,8 +308,8 @@ list(species = phylo_species,
              height = 10)
   })
 ```
-## Dataset-specific OTUS
-```{r dataset-specific OTUS}
+## Individual OTUS
+```{r individual OTUS}
 mat_tax_tmp <- tax_table2(l_species$Jansson_Lamendella_Crohns)
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
