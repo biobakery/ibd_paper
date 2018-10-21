@@ -57,7 +57,7 @@ phyloseq_to_tb <- function(phylo) {
 # which is prone to happenning whenever a phyloseq object is subsetted in any way!
 prune_taxaSamples <- function(phylo, 
                               flist_taxa = kOverA2(k = 1, A = 0), # default non-empty pruning
-                              flist_samples = kOverA2(k = 1, A = 0), # default non-empty pruning
+                              flist_samples = function(x) sum(x > 0) > 0, # default non-empty pruning
                               max.iter = 3
                               ) {
   i.iter <- 1
