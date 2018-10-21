@@ -68,8 +68,7 @@ for(study in studies) {
   phylo <- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
-    phyloseq::tax_table(biom)) %>% 
-    prune_taxaSamples()
+    phyloseq::tax_table(biom))
   print(biom)
   print(phylo)
   dir.create(paste0("data/phyloseq/", study, "/"), 
