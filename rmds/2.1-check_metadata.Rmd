@@ -20,13 +20,13 @@ setup(getwd())
 dir.output <- "results/2.1-check_metadata/"
 dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
 ```
-```{r check metadata}
+```{r check availability}
 template <- readr::read_csv(paste0(dir_processed, "data/template.csv"))
 load("data/phyloseq/genera.RData")
 df_metadata <- sample_data2(phylo_genera)
 df_metaLong <- df_metadata %>% 
   dplyr::select(-(study_accession:alternative_sample_accession),
-                -(sample_accession_16S:sample_accession_WGS),
+                -(sample_accession_16S:sample_accession_WGS), -site,
                 -(extraction_kit_16S:reads_mapping_to_unclassifed_OTU)) %>% 
   tidyr::gather(key = variable, value = value, -dataset_name) %>% 
   dplyr::left_join(template, by = c("variable" = "col.name")) %>% 
