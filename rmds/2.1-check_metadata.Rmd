@@ -1,0 +1,42 @@
+---
+title: "2.1-Check metadata"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    df_print: paged
+---
+# Overview
+- Check the availability of metadata across studies
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, echo=FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir.output <- "results/2.1-check_metadata/"
+dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+```
+```{r check metadata}
+template <- readr::read_csv(paste0(dir_processed, "data/template.csv"))
+load("data/phyloseq/genera.RData")
+df_metadata <- sample_data2(phylo_genera)
+df_metaLong <- df_metadata %>% 
+  dplyr::select(-(study_accession:alternative_sample_accession),
+                -(sample_accession_16S:sample_accession_WGS),
+                -(extraction_kit_16S:reads_mapping_to_unclassifed_OTU)) %>% 
+  tidyr::gather(key = variable, value = value, -dataset_name) %>% 
+  dplyr::left_join(template, by = c("variable" = "col.name")) %>% 
+  dplyr::mutate(variable = factor(variable, levels = template$col.name))
+df_avail <- df_metaLong %>% 
+  dplyr::group_by(dataset_name, variable) %>% 
+  dplyr::summarise(is_available = any(!is.na(value)))
+df_avail %>% 
+  ggplot(aes(x = dataset_name, y = variable, fill = is_available)) + geom_tile() +
+  scale_fill_manual(values = c("TRUE" = "black", "FALSE" = "white")) + rotate_xaxis(15)
+ggsave(file = paste0(dir.output, "fig_checkAvailabbility.pdf"),
+       width = 10, height = 10)
+```

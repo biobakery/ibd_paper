@@ -1,0 +1,44 @@
+---
+title: "Sanity check for jansson_twins_ibd"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    df_print: paged
+---
+# Overview
+jansson_twins_ibd has unsually low sequencing depth. To make sure the pipeline processed properly, check against the processed results from Qiita.
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+```
+```{r setup2, echo=FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir.output <- "results/misc/sanity_check_for_jansson_twins_ibd/"
+dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+```
+
+```{r "sanity check for jansson_twins_ibd"}
+load("data/phyloseq/jansson_twins_ibd/otus.RData")
+phylo_pipeline <- phylo
+phylo_qiita <- phyloseq::import_biom("data/misc/sanity_check_jansson_twins_ibd/otu_table.biom")
+phyloseq::sample_names(phylo_qiita) <- phyloseq::sample_names(phylo_qiita) %>% 
+  stringr::str_replace_all(stringr::fixed("."), "_")
+libSize_pipeline <- phyloseq::sample_sums(phylo_pipeline)
+libSize_qiita <- phyloseq::sample_sums(phylo_qiita)
+tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
+               libSize_pipeline = libSize_pipeline) %>% 
+  dplyr::left_join(
+    tibble::tibble(samples = phyloseq::sample_names(phylo_qiita),
+                   libSize_qiita = libSize_qiita),
+    by = "samples"
+  ) %>% 
+  ggplot(aes(x = libSize_pipeline,
+             y = libSize_qiita)) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  geom_point()
+ggsave(paste0(dir.output, "fig_compareLibSize.pdf"), width = 5, height = 5)
+```

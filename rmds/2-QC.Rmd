@@ -7,12 +7,11 @@ output:
     df_print: paged
 ---
 # Overview
-- Sensitivity check on mapping otus at a particular taxonamy rank.
 - Aggregate studies into one phyloseq object.
+- Sensitivity check on mapping otus at a particular taxonamy rank.
+- Taxa distribution across studies (alpha diveristy).
+- Uniquely present/absent taxa.
 - Library size distribution.
-- Examine taxa distribution across studies (alpha diveristy).
-- Uniquely present taxa.
-- Uniquely absent taxa.
 - Filtering.
 ```{r setup, echo=FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
@@ -26,8 +25,8 @@ setup(getwd())
 dir.output <- "results/2-QC/"
 dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
 ```
-
-```{r load datasets}
+# Aggregate studies
+```{r load datasets and aggregate studies}
 print(studies)
 l_otus <- l_species <- l_genera <- list()
 for(study in studies) {
@@ -44,6 +43,8 @@ for(study in studies) {
   l_species[[study]] <- phylo_species
   l_genera[[study]] <- phylo_genera
 }
+phylo_species <- combine_phyloseq(l_species)
+phylo_genera <- combine_phyloseq(l_genera)
 ```
 # Grouping otus into genera seems more appropriate than species
 ```{r sensitivity taxonamy}
@@ -192,161 +193,185 @@ cowplot::plot_grid(p1, p2, p3, nrow = 1, rel_widths = c(4, 1, 1)) %>%
 ```
 # Examine alpha diversity.
 ```{r "alpha diversity across studies"}
-tb_tmp <- studies %>% 
-  purrr::map_dfr(function(study) {
-    tibble::tibble(
-      taxonamy = c("species",
-                   "genera"),
-      N_taxa = c(
-        phyloseq::ntaxa(l_species[[study]]),
-        phyloseq::ntaxa(l_genera[[study]])),
-      N_samples = c(
-        phyloseq::nsamples(l_species[[study]]),
-        phyloseq::nsamples(l_genera[[study]])),
-      median_log10LibSize = c(
-        l_species[[study]] %>% 
-          phyloseq::sample_sums() %>% 
-          add(1) %>% 
-          log10() %>% 
-          median(),
-        l_genera[[study]] %>% 
-          phyloseq::sample_sums() %>% 
-          add(1) %>% 
-          log10() %>% 
-          median()),
-      study = study
-    )
+tb_nTaxaSampleLibSize <- list(otus = l_otus,
+               species = l_species,
+               genera = l_genera) %>% 
+  purrr::imap_dfr(function(l_phylo, feature_level) {
+    purrr::imap_dfr(l_phylo, function(phylo, study) {
+      tibble::tibble(
+        feature_level = feature_level,
+        study = study,
+        N_taxa = phyloseq::ntaxa(phylo),
+        N_samples = phyloseq::nsamples(phylo),
+        median_log10LibSize = phylo %>% phyloseq::sample_sums() %>% 
+          add(1) %>% log(10) %>% 
+          median()
+      )
+    })
   })
-p1 <- tb_tmp %>% 
+p1 <- tb_nTaxaSampleLibSize %>% 
   ggplot(aes(x = N_samples,
              y = N_taxa)) +
   geom_point() +
   ggrepel::geom_text_repel(aes(label = study)) +
-  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
+  facet_wrap(~factor(feature_level, levels = c("otus", "species", "genera")),
              scales = "free_y")
-p2 <- tb_tmp %>% 
+p2 <- tb_nTaxaSampleLibSize %>% 
   ggplot(aes(x = median_log10LibSize,
              y = N_taxa)) +
   geom_point() +
   ggrepel::geom_text_repel(aes(label = study)) +
-  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
+  facet_wrap(~factor(feature_level, levels = c("otus", "species", "genera")),
              scales = "free_y")
-print(p1)
-print(p2)
-plot_grid(p1, p2, nrow = 1) %>% 
+plot_grid(p1, p2, ncol = 1) %>% 
   cowplot_title("Alpha diversity across studies") %>% 
   ggsave(file = paste0(dir.output, "fig_alphaDiversity.pdf"),
          width = 15,
-         heigh = 5)
+         heigh = 10)
 ```
-Examine uniquely present and absent taxa.
+# Examine uniquely present and absent taxa.
 ```{r "dataset specific species"}
-uniqTaxa <- unique_taxa(phylo_species, name_study = "dataset_name")
-uniqTaxa$tb_presence %>% 
-  dplyr::filter(!duplicated(feature)) %>% 
-  dplyr::group_by(n_present) %>% 
-  dplyr::summarise(N = n()) %>% 
-  t() %>% 
-  DT::datatable()
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniquePresent.pdf"),
-         plot = .,
-         width = 40,
-         height = 10)
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::filter(mean_abundance > 1e-4) %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniquePresentZoom.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-(uniqTaxa$tb_uniqAbs %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniqueAbsent.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-
-uniqTaxa <- unique_taxa(phylo_genera, name_study = "dataset_name")
-uniqTaxa$tb_presence %>% 
-  dplyr::filter(!duplicated(feature)) %>% 
-  dplyr::group_by(n_present) %>% 
-  dplyr::summarise(N = n()) %>% 
-  t() %>% 
-  DT::datatable()
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniquePresent.pdf"),
-         plot = .,
-         width = 40,
-         height = 10)
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::filter(mean_abundance > 1e-4) %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniquePresentZoom.pdf"),
+list(species = phylo_species,
+     genera = phylo_genera) %>% 
+  purrr::iwalk(function(phylo, feature_level) {
+    tb_long <- phylo %>% 
+      phyloseq::transform_sample_counts(tss) %>% 
+      phyloseq_to_tb()
+    tb_presence <- tb_long %>% 
+      dplyr::group_by(feature, dataset_name) %>% 
+      dplyr::summarise(present = any(abundance > 0)) %>% 
+      dplyr::group_by(feature) %>% 
+      dplyr::mutate(n_present = sum(present),
+                    n_absent = sum(!present))
+    tb_long <- tb_long %>% 
+      dplyr::left_join(tb_presence,
+                       by = c("feature", "dataset_name"))
+    tb_uniqPres <- tb_long %>% 
+      dplyr::filter(n_present == 1, present) %>% 
+      dplyr::group_by(feature, dataset_name) %>% 
+      dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+      dplyr::ungroup()
+    tb_uniqAbs <- tb_long %>% 
+      dplyr::filter(n_absent == 1, present) %>% 
+      dplyr::group_by(feature) %>% 
+      dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::left_join(
+        tb_presence %>% 
+          dplyr::filter(n_absent == 1,
+                        !present),
+        by = "feature"
+      ) %>% 
+      dplyr::select(feature, dataset_name, mean_abundance)
+    
+    # Table summarises feature presence
+    tb_presence %>% 
+      dplyr::filter(!duplicated(feature)) %>% 
+      dplyr::group_by(n_present) %>% 
+      dplyr::summarise(N = n()) %>% 
+      t() %>% 
+      DT::datatable(caption = feature_level) %>% 
+      print()
+    
+    # Figure uniquely present features
+    p <- tb_uniqPres %>% 
+      dplyr::arrange(dataset_name, mean_abundance) %>% 
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
+      rotate_xaxis(90) 
+    ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniquePresent.pdf"),
+           plot = p,
+           width = 40,
+           height = 10)
+    p <- tb_uniqPres %>% 
+      dplyr::filter(mean_abundance > 1e-4) %>% 
+      dplyr::arrange(dataset_name, mean_abundance) %>% 
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
+      rotate_xaxis(90) + coord_flip()
+    p %>% print() %>% 
+      ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniquePresentZoom.pdf"),
          plot = .,
          width = 15,
          height = 10)
-(uniqTaxa$tb_uniqAbs %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniqueAbsent.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-
+    
+    # Figure uniquely absent features
+    p <- tb_uniqAbs %>% 
+      dplyr::arrange(dataset_name, mean_abundance) %>% 
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
+      rotate_xaxis(90) + coord_flip() 
+    p %>% print() %>% 
+      ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniqueAbsent.pdf"),
+             plot = .,
+             width = 15,
+             height = 10)
+  })
+```
+## Dataset-specific OTUS
+```{r dataset-specific OTUS}
 mat_tax_tmp <- tax_table2(l_species$Jansson_Lamendella_Crohns)
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
-  dplyr::filter(Rank6 == "g__Oceanobacillus")
+  dplyr::filter(Rank7 == "s__oncorhynchi")
 mat_tax_tmp <- tax_table2(l_species$MucosalIBD)
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
   dplyr::filter(Rank7 == "s__blattae")
+tax_table2(phylo_genera) %>% 
+  tibble::as_tibble(rownames = "feature") %>% 
+  dplyr::filter(Rank6 == "g__Escherichia")
 ```
-```{r "Filter samples"}
-tb_libSize <- phylo_species %>% sample_sums() %>% 
-  tibble::tibble(rownames = phyloseq::sample_names(phylo_species),
-                 lib_size = .) %>% 
-  dplyr::left_join(sample_data2(phylo_species) %>% 
-                     tibble::as_tibble(rownames = "rownames") %>% 
-                     dplyr::select(rownames = rownames,
-                                   dataset_name = dataset_name),
-                   by = "rownames")
+# Examine library sizes
+```{r check lib sizes, message=FALSE}
+# sanity check
+tb_libSize <- list(otu = l_otus,
+                   species = l_species, 
+                   genus = l_genera) %>% 
+  purrr::imap_dfr(function(l_phylo, feature_level) {
+    l_phylo %>% purrr::imap_dfr(function(phylo, dataset_name) {
+      tibble::tibble(
+        sample_accession_16S = phyloseq::sample_names(phylo),
+        dataset_name = dataset_name,
+        lib_size = phyloseq::sample_sums(phylo),
+        feature_level = feature_level)
+    })
+  })
+tb_libSize %>% 
+  dplyr::select(dataset_name, sample_accession_16S, feature_level, lib_size) %>% 
+  tidyr::spread(key = feature_level, value = lib_size) %>% 
+  ggplot(aes(x = genus, y = otu)) + geom_point() + ggtitle("lib size otus vs. genera level")
+tb_libSize <- tb_libSize %>% dplyr::filter(feature_level == "genus")
+tb_readCounts <- studies %>% 
+  purrr::map_dfr(~ paste0(dir_processed, 
+                          "processed/", 
+                          .x, 
+                          "/16s/all_samples_read_counts.tsv") %>% 
+                   readr::read_tsv(col_types = "cddd") %>% 
+                   dplyr::mutate(dataset_name = .x)) %>% 
+  dplyr::rename(original_read_count = `original read count`,
+                reads_mapping_to_OTU_with_taxonomy = `reads mapping to OTU with taxonomy`,
+                reads_mapping_to_unclassifed_OTU = `reads mapping to unclassifed OTU`)
+tb_libSize <- tb_libSize %>% 
+  dplyr::left_join(tb_readCounts,
+                   c("dataset_name" = "dataset_name",
+                     "sample_accession_16S" = "# sample"))
+tb_libSize %>% 
+  ggplot(aes(x = lib_size, y = reads_mapping_to_OTU_with_taxonomy)) + geom_point() +
+  facet_wrap(~dataset_name) + ggtitle("The two should be the same")# the two are equal
+tb_libSize %>% 
+  tidyr::gather(key = "Type of read count",
+                value = "N",
+                original_read_count,
+                lib_size,
+                reads_mapping_to_OTU_with_taxonomy,
+                reads_mapping_to_unclassifed_OTU,
+                factor_key = TRUE) %>% 
+  ggplot(aes(x = dataset_name, y = log10(N + 1), color = `Type of read count`)) + 
+  geom_boxplot() + rotate_xaxis(90)
+ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
+       width = 10,
+       height = 8)
 p1 <- tb_libSize %>% 
   ggplot(aes(x = dataset_name, fill = (lib_size > 3000))) +
   geom_bar(stat = "count") +
@@ -357,109 +382,40 @@ p2 <- tb_libSize %>%
   geom_bar(stat = "count") +
   rotate_xaxis(30) +
   ggtitle("Cutoff = 1000")
-plot_grid(p1, p2, nrow = 2) %>% 
-  print() %>% 
-  ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
-         width = 10, 
-         height = 10)
-```
-
-Some sanity check on library sizes.
-```{r "check lib sizes", message=FALSE}
-lib_size <- studies %>% 
-  purrr::map_dfr(~ tibble::tibble(
-    study = .x,
-    sample = l_biom %>% 
-      extract2(.x) %>% 
-      phyloseq::sample_names(),
-    lib.size = l_biom %>% 
-      extract2(.x) %>% 
-      phyloseq::sample_sums()
-  ))  
-read_counts <- studies %>% 
-  purrr::map_dfr(~ paste0(dir_processed, 
-                          "processed/", 
-                          .x, 
-                          "/16s/all_samples_read_counts.tsv") %>% 
-                   readr::read_tsv(col_types = "cddd") %>% 
-                   dplyr::mutate(study = .x)) 
-lib_size %>% 
-  dplyr::filter(sample %>% 
-                  is_in(read_counts$`# sample`) %>% 
-                  not) %>% 
-  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck1.tsv")) %>% 
-  DT::datatable()
-read_counts %>%
-  dplyr::filter(`# sample` %>% 
-                  is_in(lib_size$sample) %>% 
-                  not) %>% 
-  readr::write_tsv(paste0(dir.output, "tb_libSizeSanityCheck2.tsv")) %>% 
-  DT::datatable() # samples that aren't present in the OTU table are because of low read counts
-lib_size <- lib_size %>% 
-  dplyr::left_join(read_counts,
-                   c("study" = "study",
-                     "sample" = "# sample"))
-lib_size %>% 
-  ggplot(aes(x = lib.size, y = `reads mapping to OTU with taxonomy`)) +
-  geom_point() +
-  facet_wrap(~study) # the two are equal
-lib_size %>% 
-  tidyr::gather(key = "Type of read count",
-                value = "N",
-                "original read count",
-                "lib.size",
-                `reads mapping to OTU with taxonomy`,
-                `reads mapping to unclassifed OTU`,
-                factor_key = TRUE) %>% 
-  ggplot(aes(x = study, y = log10(N + 1), color = `Type of read count`)) +
-  geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
+cowplot::plot_grid(p1, p2, ncol = 1) %>% 
+  cowplot_title(title = "Lib size filtering cut off?") %>% print() %>%
+  ggsave(filename = paste0(dir.output, "fig_libSizeCutoff.pdf"),
        width = 10,
        height = 8)
+sample_data(phylo_species) <- 
+  sample_data2(phylo_species) %>% 
+  tibble::rownames_to_column() %>% 
+  dplyr::left_join(tb_readCounts, 
+            by = c("dataset_name" = "dataset_name", 
+                   "sample_accession_16S" = "# sample")) %>% 
+  tibble::column_to_rownames()
+sample_data(phylo_genera) <- 
+  sample_data2(phylo_genera) %>%
+  tibble::rownames_to_column() %>% 
+  dplyr::left_join(tb_readCounts, 
+            by = c("dataset_name" = "dataset_name", 
+                   "sample_accession_16S" = "# sample")) %>% 
+  tibble::column_to_rownames()
 ```
-
-```{r "sanity check for jansson_twins_ibd"}
-phylo_pipeline <- l_species[["jansson_twins_ibd"]]
-phylo_qiita <- phyloseq::import_biom("~/Downloads/otu_table (1).biom")
-phyloseq::sample_names(phylo_qiita) <- phyloseq::sample_names(phylo_qiita) %>% 
-  stringr::str_replace_all(stringr::fixed("."), "_")
-libSize_pipeline <- phyloseq::sample_sums(phylo_pipeline)
-libSize_qiita <- phyloseq::sample_sums(phylo_qiita)
-tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
-               libSize_pipeline = libSize_pipeline) %>% 
-  dplyr::left_join(
-    tibble::tibble(samples = phyloseq::sample_names(phylo_qiita),
-                   libSize_qiita = libSize_qiita),
-    by = "samples"
-  ) %>% 
-  ggplot(aes(x = libSize_pipeline,
-             y = libSize_qiita)) +
-  geom_abline(slope = 1, intercept = 0, color = "red") +
-  geom_point()
-tb_libSize_tmp <- tb_libSize %>% 
-  dplyr::filter(dataset_name == "jansson_twins_ibd") %>% 
-  dplyr::left_join(tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
-                                  libSize_pipeline = libSize_pipeline),
-                   by = c("rownames" = "samples"))
-tb_libSize_tmp %>% 
-  ggplot(aes(x = lib_size,
-             y = libSize_pipeline)) +
-  geom_point()
-otu1 <- otu_table2(phylo_species)[, "1070_CCD_p11_dc19"]
-sum(otu1)
-otu2 <- otu_table(phylo_pipeline)[, "1070_CCD_p11_dc19"]
-sum(otu2)
-test_taxTable <- tax_table2(phylo_pipeline)
-test_species <- test_taxTable %>% apply(1, paste, collapse = "|")
-table(test_species)
-```
-```{r "Filter taxa"}
-phylo_species_filtered <- phylo_species %>% 
-  prune_taxaSamples(kOverA2(k = phyloseq::nsamples(phylo_species) * 0.01,
-                            A = 1e-4))
-phylo_genera_filtered <- phylo_species_filtered %>% 
-  phyloseq::tax_glom("Rank6")
-save(phylo_species_filtered, file = "data/phyloseq/species_filtered.RData")
-save(phylo_genera_filtered, file = "data/phyloseq/genera_filtered.RData")
+# Filter samples and taxa
+```{r Filter samples and taxa}
+print(phylo_genera)
+phylo_genera <- phylo_genera %>% 
+  prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
+                                         A = 1e-4),
+                    flist_samples = function(x) sum(x) > 1000)
+print(phylo_genera)
+print(phylo_species)
+phylo_species <- phylo_species %>% 
+  prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_species) * 0.01,
+                                         A = 1e-4),
+                    flist_samples = function(x) sum(x) > 1000)
+print(phylo_species)
+save(phylo_genera, file = "data/phyloseq/genera.RData")
+save(phylo_species, file = "data/phyloseq/species.RData")
 ```
