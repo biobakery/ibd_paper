@@ -90,3 +90,13 @@ cowplot::plot_grid(plotlist = l_p_num, ncol = 1) %>%
   ggsave(filename = paste0(dir_output, "fig_numDist.pdf"),
          width = 8, height = length(l_p_num) * 4)
 ```
+
+# Table 1
+```{r table 1}
+df_metadata %>% 
+  dplyr::group_by(dataset_name) %>% 
+  dplyr::do(tb1 = makeTable1(.)) %>% 
+  extract2("tb1") %>% 
+  purrr::reduce(rbind)
+```
+
