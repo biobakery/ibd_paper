@@ -98,6 +98,5 @@ df_metadata %>%
   dplyr::do(tb1 = makeTable1(.)) %>% 
   extract2("tb1") %>% 
   purrr::reduce(rbind)
-df_metadata %>% dplyr::filter(dataset_name == "HMP2") %>% 
 ```
 
