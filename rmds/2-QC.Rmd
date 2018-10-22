@@ -405,11 +405,15 @@ sample_data(phylo_genera) <-
 # Filter samples and taxa
 ```{r Filter samples and taxa}
 print(phylo_genera)
+phylo_genera <- phylo_genera %>% phyloseq::subset_samples(!is.na(body_site) & !is.na(disease))
+print(phylo_genera)
 phylo_genera <- phylo_genera %>% 
   prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
                                          A = 1e-4),
                     flist_samples = function(x) sum(x) > 1000)
 print(phylo_genera)
+print(phylo_species)
+phylo_species <- phylo_species %>% phyloseq::subset_samples(!is.na(body_site) & !is.na(disease))
 print(phylo_species)
 phylo_species <- phylo_species %>% 
   prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_species) * 0.01,
