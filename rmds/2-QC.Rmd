@@ -22,8 +22,8 @@ for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
 setup(getwd())
-dir.output <- "results/2-QC/"
-dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+dir_output <- "results/2-QC/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 # Aggregate studies
 ```{r load datasets and aggregate studies}
@@ -89,7 +89,7 @@ p <- tb_long %>%
   rotate_xaxis(30) +
   ggtitle("OTUs are mostly classified at order, family, genus, and species level")
 print(p) %>% 
-  ggsave(paste0(dir.output, "fig_OTUClassification.pdf"),
+  ggsave(paste0(dir_output, "fig_OTUClassification.pdf"),
          .,
          width = 8,
          height = 5)
@@ -106,7 +106,7 @@ p <- tb_long %>%
   no_label_xaxis() +
   ggtitle("OTUs are most abundantly classified at family, genus, and species level.")
 print(p) %>% 
-  ggsave(paste0(dir.output, "fig_speciesClassificationAbd.pdf"),
+  ggsave(paste0(dir_output, "fig_speciesClassificationAbd.pdf"),
          .,
          width = 20,
          height = 6)
@@ -140,7 +140,7 @@ p2 <- tb_long %>%
   geom_bar(stat = "identity") +
   rotate_xaxis(30)
 cowplot::plot_grid(p1, p2, nrow = 1, rel_widths = c(0.8, 0.2)) %>% 
-  ggsave(paste0(dir.output, "fig_speciesUnclassified.pdf"),
+  ggsave(paste0(dir_output, "fig_speciesUnclassified.pdf"),
          .,
          width = 25,
          height = 6)
@@ -186,7 +186,7 @@ p3 <- tb_long %>%
   rotate_xaxis(30) +
   ggtitle("# unclassified f_Enterobacteriacea OTUs")
 cowplot::plot_grid(p1, p2, p3, nrow = 1, rel_widths = c(4, 1, 1)) %>% 
-  ggsave(paste0(dir.output, "fig_generaUnclassified.pdf"),
+  ggsave(paste0(dir_output, "fig_generaUnclassified.pdf"),
          .,
          width = 30,
          height = 6)
@@ -225,7 +225,7 @@ p2 <- tb_nTaxaSampleLibSize %>%
              scales = "free_y")
 plot_grid(p1, p2, ncol = 1) %>% 
   cowplot_title("Alpha diversity across studies") %>% 
-  ggsave(file = paste0(dir.output, "fig_alphaDiversity.pdf"),
+  ggsave(file = paste0(dir_output, "fig_alphaDiversity.pdf"),
          width = 15,
          heigh = 10)
 ```
@@ -279,7 +279,7 @@ list(species = phylo_species,
       dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
       ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
       rotate_xaxis(90) 
-    ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniquePresent.pdf"),
+    ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresent.pdf"),
            plot = p,
            width = 40,
            height = 10)
@@ -290,7 +290,7 @@ list(species = phylo_species,
       ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
       rotate_xaxis(90) + coord_flip()
     p %>% print() %>% 
-      ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniquePresentZoom.pdf"),
+      ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresentZoom.pdf"),
          plot = .,
          width = 15,
          height = 10)
@@ -302,14 +302,14 @@ list(species = phylo_species,
       ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
       rotate_xaxis(90) + coord_flip() 
     p %>% print() %>% 
-      ggsave(filename = paste0(dir.output, "fig_", feature_level, "UniqueAbsent.pdf"),
+      ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniqueAbsent.pdf"),
              plot = .,
              width = 15,
              height = 10)
   })
 ```
-## Dataset-specific OTUS
-```{r dataset-specific OTUS}
+## Individual OTUS
+```{r individual OTUS}
 mat_tax_tmp <- tax_table2(l_species$Jansson_Lamendella_Crohns)
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
@@ -369,7 +369,7 @@ tb_libSize %>%
                 factor_key = TRUE) %>% 
   ggplot(aes(x = dataset_name, y = log10(N + 1), color = `Type of read count`)) + 
   geom_boxplot() + rotate_xaxis(90)
-ggsave(filename = paste0(dir.output, "fig_libSize.pdf"),
+ggsave(filename = paste0(dir_output, "fig_libSize.pdf"),
        width = 10,
        height = 8)
 p1 <- tb_libSize %>% 
@@ -384,7 +384,7 @@ p2 <- tb_libSize %>%
   ggtitle("Cutoff = 1000")
 cowplot::plot_grid(p1, p2, ncol = 1) %>% 
   cowplot_title(title = "Lib size filtering cut off?") %>% print() %>%
-  ggsave(filename = paste0(dir.output, "fig_libSizeCutoff.pdf"),
+  ggsave(filename = paste0(dir_output, "fig_libSizeCutoff.pdf"),
        width = 10,
        height = 8)
 sample_data(phylo_species) <- 

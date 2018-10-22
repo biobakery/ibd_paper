@@ -17,8 +17,8 @@ for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
 setup(getwd())
-dir.output <- "results/misc/sanity_check_for_jansson_twins_ibd/"
-dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+dir_output <- "results/misc/sanity_check_for_jansson_twins_ibd/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ```{r "sanity check for jansson_twins_ibd"}
@@ -40,5 +40,5 @@ tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
              y = libSize_qiita)) +
   geom_abline(slope = 1, intercept = 0, color = "red") +
   geom_point()
-ggsave(paste0(dir.output, "fig_compareLibSize.pdf"), width = 5, height = 5)
+ggsave(paste0(dir_output, "fig_compareLibSize.pdf"), width = 5, height = 5)
 ```

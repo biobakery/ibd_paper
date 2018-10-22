@@ -18,8 +18,8 @@ for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
 setup(getwd())
-dir.output <- "results/1-create_phyloseq/"
-dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+dir_output <- "results/1-create_phyloseq/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 # Load .biom files from 16s workflow
 ```{r load bioms}
