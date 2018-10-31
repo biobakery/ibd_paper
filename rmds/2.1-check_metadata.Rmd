@@ -97,6 +97,5 @@ df_metadata %>%
   dplyr::group_by(dataset_name) %>% 
   dplyr::do(tb1 = makeTable1(.)) %>% 
   tidyr::unnest()
-load("~/Downloads/metadata.RData")
 ```
 

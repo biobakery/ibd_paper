@@ -6,6 +6,7 @@ output:
   html_document:
     df_print: paged
 ---
+- Calculate distances of samples (before and after adjustment)
 - Adjust batch within studies (if available).
 - Adjust batch across studies.
 - Overview of studies.
@@ -16,17 +17,21 @@ output:
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-R.utils::sourceDirectory("functions/")
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
 setup(getwd())
-dir.output <- "results/3-adjust_batch/"
-dir.create(dir.output, recursive = TRUE, showWarnings = FALSE)
+dir_output <- "results/3-adjust_batch/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 ```{r heatmap"}
 print(studies)
-load("data/phyloseq/species_filtered.RData")
+load("data/phyloseq/genera.RData")
 tb_long <- phylo_species_filtered %>% 
   transform_sample_counts(tss) %>% 
   phyloseq_to_tb()
+
+dist_before
 tb_rankFeature <- tb_long %>% 
   dplyr::group_by(feature) %>% 
   dplyr::summarise(mean_abundance = mean(abundance)) %>% 

@@ -118,8 +118,8 @@ tb_long_speciesUnclassified <- tb_long %>%
   dplyr::mutate(taxonamy = ifelse(mean_abundance >= sort(unique(mean_abundance), decreasing = TRUE)[10],
                                   paste(Rank6, Rank7, sep = "|"), "others")) %>% 
   dplyr::arrange(dplyr::desc(mean_abundance)) %>% dplyr::mutate(taxonamy = factor(taxonamy, levels = unique(taxonamy))) %>%
-  dplyr::group_by(dataset_name, rownames) %>% dplyr::mutate(most_abundant_abundance = abundance[taxonamy == levels(taxonamy)[1]]) %>% dplyr::ungroup() %>% 
-  dplyr::arrange(dataset_name, most_abundant_abundance) %>% dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
+  dplyr::group_by(dataset_name, rownames) %>% dplyr::mutate(all_abundance = sum(abundance)) %>% dplyr::ungroup() %>% 
+  dplyr::arrange(dataset_name, all_abundance) %>% dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
 p1 <- tb_long_speciesUnclassified %>% 
   ggplot(aes(x = rownames, y = abundance, fill = taxonamy)) +
   geom_bar(stat = "identity") +
@@ -152,8 +152,8 @@ tb_long_generaUnclassified <- tb_long %>%
   dplyr::mutate(taxonamy = ifelse(mean_abundance >= sort(unique(mean_abundance), decreasing = TRUE)[10],
                                   paste(Rank5, Rank6, sep = "|"), "others")) %>% 
   dplyr::arrange(dplyr::desc(mean_abundance)) %>% dplyr::mutate(taxonamy = factor(taxonamy, levels = unique(taxonamy))) %>%
-  dplyr::group_by(dataset_name, rownames) %>% dplyr::mutate(most_abundant_abundance = abundance[taxonamy == levels(taxonamy)[1]]) %>% dplyr::ungroup() %>% 
-  dplyr::arrange(dataset_name, most_abundant_abundance) %>% dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
+  dplyr::group_by(dataset_name, rownames) %>% dplyr::mutate(all_abundance = sum(abundance)) %>% dplyr::ungroup() %>% 
+  dplyr::arrange(dataset_name, all_abundance) %>% dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
 p1 <- tb_long_generaUnclassified %>% 
   ggplot(aes(x = rownames, y = abundance, fill = taxonamy)) +
   geom_bar(stat = "identity") +
