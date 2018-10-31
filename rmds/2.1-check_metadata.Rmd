@@ -98,13 +98,5 @@ df_metadata %>%
   dplyr::do(tb1 = makeTable1(.)) %>% 
   tidyr::unnest()
 load("~/Downloads/metadata.RData")
-head(map_bidmc)
-df_metadata %>% dplyr::filter(dataset_name == "BIDMC-FMT") %>% dplyr::select(subject_accession) %>% 
-  dplyr::filter(subject_accession %in% map_bidmc$subject)
-df_metadata %>% dplyr::filter(dataset_name == "Pouchitis") %>% dplyr::group_by(disease) %>% 
-  dplyr::summarise(n_subject = dplyr::n_distinct(subject_accession))
-df_metadata %>% dplyr::filter(dataset_name == "MucosalIBD") %>% dplyr::group_by(disease) %>% 
-  dplyr::summarise(n_subject = dplyr::n_distinct(subject_accession))
-
 ```
 

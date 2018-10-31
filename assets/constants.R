@@ -13,5 +13,6 @@ studies <- c("BIDMC-FMT",
              "LSS-PRISM",
              "MucosalIBD",
              "Pouchitis",
+             "PROTECT",
              "RISK")
 dir_processed <- "../ibd_meta_analysis/"
