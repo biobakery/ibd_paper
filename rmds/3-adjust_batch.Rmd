@@ -295,3 +295,55 @@ list(1:2, 3:4) %>%
              ., width = 20, height = 8)
   })
 ```
+
+# Heatmap of top abundant taxa
+```{r heatmap}
+tb_long <- phylo_genera_adj %>% 
+  phyloseq::transform_sample_counts(tss) %>%
+  phyloseq_to_tb
+tax_abd <- tb_long %>% 
+  dplyr::group_by(feature) %>% 
+  dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+  dplyr::arrange(desc(mean_abundance)) %>% 
+  dplyr::slice(1:30) %>% 
+  extract2("feature")
+samples_order <- studies %>%
+  purrr::map(function(study) {
+    samples_tmp <- rownames(metadata)[metadata$dataset_name == study]
+    dist_tmp <- dist_genera_adj %>% subset_distance(samples_tmp)
+    return(samples_tmp[hclust(dist_tmp, method = "average")$order])
+  }) %>% unlist()
+
+ha <- ComplexHeatmap::HeatmapAnnotation(
+  metadata[samples_order, "dataset_name", drop = FALSE],
+  col = list(dataset_name = c("RISK" = "black",
+                              "PROTECT" = "grey", 
+                              gg_color_hue(studies %>% 
+                                             setdiff(c("RISK", "PROTECT"))))
+             )
+)
+mat_otu_plot <- mat_otu_adj[tax_abd, samples_order] %>% 
+  apply(2, function(x) x / sum(x))
+tax_table_plot <- tax_table2(phylo_genera_adj)[tax_abd, ] 
+rownames(mat_otu_plot) <- dplyr::case_when(
+  tax_table_plot[, 6] != "g__" ~ tax_table_plot[, 6],
+  tax_table_plot[, 5] != "f__" ~ paste0(tax_table_plot[, 5], "|g__"),
+  TRUE ~ tax_table_plot[, 4]
+)
+mat_otu_plot[mat_otu_plot == 0] <- NA
+heatmap <- ComplexHeatmap::Heatmap(log10(mat_otu_plot),
+                                   col = circlize::colorRamp2(
+                                     c(min(log10(mat_otu_plot), na.rm = TRUE), 
+                                       median(log10(mat_otu_plot), na.rm = TRUE), 0),
+                                     c("blue", "black", "red")),
+                                   na_col = "white",
+                                   cluster_rows = TRUE, show_row_dend = FALSE,
+                                   cluster_columns = FALSE,
+                                   row_names_side = "left",
+                                   show_column_names = FALSE,
+                                   top_annotation = ha)
+pdf(paste0(dir_output, "heatmap.pdf"), width = 35, height = 10)
+ComplexHeatmap::draw(heatmap)
+dev.off()
+```
+
