@@ -135,6 +135,7 @@ ggsave(filename = paste0(dir_output, "adjust.batch_studies.pdf"),
        height = 4)
 
 otu_table(phylo_genera_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
+save(phylo_genera_adj, file = "data/phyloseq/genera_adj.RData")
 # dist_genera_adj <- phylo_genera_adj %>% 
 #   transform_sample_counts(tss) %>% 
 #   phyloseq::distance(method = "bray")

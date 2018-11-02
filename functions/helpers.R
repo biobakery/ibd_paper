@@ -64,3 +64,8 @@ extract_pcoa <- function(fit_pcoa, n_axis) {
     })
   tb_axes %>% dplyr::left_join(tb_varExplained, by = "axes") %>% return()
 }
+
+fill_na <- function(variable) {
+  if(class(variable) != "character") stop("variable must be character!")
+  ifelse(is.na(variable), "NA", variable)
+}

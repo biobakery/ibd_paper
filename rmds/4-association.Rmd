@@ -1,0 +1,352 @@
+---
+title: "4-association"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+- Perform association analysis on covariates
+- PERMANOVA
+- Maaslin2
+
+```{r setup, echo = FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/4-association/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+# PERMANOVA
+```{r PERMANOVA}
+print(studies)
+load("data/phyloseq/genera_adj.RData")
+load("data/distance/distance_genera_adj.RData")
+n_permutations <- 2 # set # permuations for PERMANOVA
+
+metadata <- sample_data2(phylo_genera_adj)
+# manipulate variables to test, so that avoid missing values
+metadata_test <- metadata %>% 
+  dplyr::mutate(B.cat_fill = fill_na(B.cat),
+                L.cat_fill = fill_na(L.cat),
+                E.cat_fill = fill_na(E.cat),
+                race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                age_at_diagnosis.cat_fill = 
+                  dplyr::case_when(age_at_diagnosis < 18 ~ "A1",
+                                   age_at_diagnosis < 40 ~ "A2",
+                                   !is.na(age_at_diagnosis) ~ "A3",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                antibiotics_fill = fill_na(antibiotics),
+                immunosuppressants_fill = fill_na(immunosuppressants),
+                steroids_fill = fill_na(steroids),
+                mesalamine_5ASA_fill = fill_na(mesalamine_5ASA))
+
+# whole bunch of PERMANOVA fits
+l_fit_adonisMarg <- paste0(c("race", 
+                             "gender", 
+                             "age.cat", 
+                             "age_at_diagnosis.cat"), "_fill") %>% 
+  purrr::map(function(variable) {
+    as.formula(paste0("dist_genera_adj~(", variable,
+                      "==\"NA\")", "+", variable)) %>% 
+      vegan::adonis(data = metadata_test, permutations = n_permutations)
+  })
+l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat", 
+                             "antibiotics",
+                             "immunosuppressants",
+                             "steroids",
+                             "mesalamine_5ASA"), "_fill") %>% 
+  purrr::map(function(variable) {
+    as.formula(paste0("dist_genera_adj~disease+(", variable,
+                      "==\"NA\")", "+", variable)) %>% 
+      vegan::adonis(data = metadata_test, permutations = n_permutations)
+  })
+fit_adonis_disease <- 
+  vegan::adonis(dist_genera_adj~disease,
+                data = metadata_test, permutations = n_permutations)
+fit_adonis_bodySite <- 
+  vegan::adonis(dist_genera_adj~sample_type + body_site,
+                data = metadata_test, permutations = n_permutations)
+fit_adonis_subject <- 
+  vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
+                data = metadata_test, permutations = n_permutations)
+
+tb_marg <- c("race", 
+             "gender", 
+             "age.cat", 
+             "age_at_diagnosis.cat") %>% 
+  purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
+    tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
+                   variable = variable,
+                   is_NA = c("is_NA", "non_missing"))
+  })
+tb_cond <-c("B.cat", "L.cat", "E.cat", 
+            "antibiotics",
+            "immunosuppressants",
+            "steroids",
+            "mesalamine_5ASA") %>% 
+  purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
+    tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
+                   variable = variable,
+                   is_NA = c("is_NA", "non_missing"))
+  })
+tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1], 
+                             variable = "disease", is_NA = "non_missing")
+tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2], 
+                              variable = c("stool/biopsy", "biopsy_site"), 
+                              is_NA = "non_missing")
+tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
+                             variable = c("study", "subject"),
+                             is_NA = "non_missing")
+tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>% 
+  dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
+                is_NA = factor(is_NA, levels = c("non_missing", "is_NA")))
+tb_plot %>% 
+  ggplot(aes(x = is_NA, y = variable, fill = R2)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "black", trans = "log10") +
+  geom_text(aes(label = round(R2*100, digits = 2) %>% paste0("%")), color = "navy")
+ggsave(filename = paste0(dir_output, "PERMANOVA.pdf"), width = 5, height = 6)
+```
+
+# Maaslin2
+```{r Maaslin2}
+metadata_test <- metadata_test %>% 
+  dplyr::mutate(study_site = paste0(dataset_name, sample_type),
+                study_site_disease = paste0(dataset_name, sample_type, disease),
+                IBD = disease %>% 
+                  dplyr::recode("CD" = "IBD",
+                                "UC" = "IBD",
+                                "control" = "control",
+                                .default = NA_character_))
+mat_otu_adj <- phylo_genera_adj %>% transform_sample_counts(tss) %>%  otu_table2
+
+l_results <- list()
+# IBD vs contrl
+test_tmp <- "IBD_vs_control"
+metadata_tmp <- metadata_test %>% 
+  dplyr::filter(!is.na(IBD)) %>% 
+  dplyr::mutate(test_variable = IBD %>% 
+                  dplyr::recode("IBD" = "1",
+                                "control" = "0",
+                                .missing = NA_character_))
+metadata_filter_tmp <- 
+  metadata_tmp %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
+metadata_tmp <- metadata_tmp %>% 
+  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
+  dplyr::filter(available == 2)
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+
+dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
+
+metadata_tmp <- metadata_tmp %>% dplyr::filter(dataset_name == "Jansson_Lamendella_Crohns")
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+test <- Maaslin2::Maaslin2(input_data = mat_otu_adj[, rownames(metadata_tmp)],
+                           input_metadata = metadata_tmp,
+                           output = dir_output.tmp,
+                           min_abundance = 0,
+                           min_prevalence = 0,
+                           normalization = "TSS",
+                           transform = "AST",
+                           analysis_method = "LM",
+                           random_effects = "subject_accession",
+                           fixed_effects = "test_variable",
+                           standardize = FALSE)
+test <- Maaslin2::Maaslin2(input_data = mat_otu_adj[, rownames(metadata_tmp)],
+                           input_metadata = metadata_tmp,
+                           output = dir_output.tmp,
+                           min_abundance = 0,
+                           min_prevalence = 0,
+                           normalization = "TSS",
+                           transform = "AST",
+                           analysis_method = "LM",
+                           random_effects = "subject_accession",
+                           fixed_effects = c("test_variable", 
+                                             "age.cat_fill",
+                                             "gender_fill",
+                                             "race_fill"),
+                           standardize = FALSE)
+
+
+dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+l_results[[test_tmp]] <- MMUPHin::lm.meta(
+  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
+  batch = "study_site",
+  exposure = "test_variable",
+  exposure.values = "1",
+  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+  covariates.random = "subject_accession",
+  data = metadata_tmp,
+  directory = dir_output.tmp
+)
+
+
+# CD vs contrl
+test_tmp <- "CD_vs_control"
+metadata_tmp <- metadata_test %>% 
+  dplyr::filter(disease %in% c("CD", "control")) %>% 
+  dplyr::mutate(test_variable = disease %>% 
+                  dplyr::recode("CD" = "1",
+                                "control" = "0",
+                                .missing = NA_character_))
+metadata_filter_tmp <- 
+  metadata_tmp %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
+metadata_tmp <- metadata_tmp %>% 
+  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
+  dplyr::filter(available == 2)
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
+dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+l_results[[test_tmp]] <- MMUPHin::lm.meta(
+  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
+  batch = "study_site",
+  exposure = "test_variable",
+  exposure.values = "1",
+  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+  covariates.random = "subject_accession",
+  data = metadata_tmp,
+  directory = dir_output.tmp
+)
+
+# UC vs contrl
+test_tmp <- "UC_vs_control"
+metadata_tmp <- metadata_test %>% 
+  dplyr::filter(disease %in% c("UC", "control")) %>% 
+  dplyr::mutate(test_variable = disease %>% 
+                  dplyr::recode("UC" = "1",
+                                "control" = "0",
+                                .missing = NA_character_))
+metadata_filter_tmp <- 
+  metadata_tmp %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
+metadata_tmp <- metadata_tmp %>% 
+  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
+  dplyr::filter(available == 2)
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
+dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+l_results[[test_tmp]] <- MMUPHin::lm.meta(
+  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
+  batch = "study_site",
+  exposure = "test_variable",
+  exposure.values = "1",
+  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+  covariates.random = "subject_accession",
+  data = metadata_tmp,
+  directory = dir_output.tmp
+)
+
+# CD vs UC
+test_tmp <- "CD_vs_UC"
+metadata_tmp <- metadata_test %>% 
+  dplyr::filter(disease %in% c("CD", "UC")) %>% 
+  dplyr::mutate(test_variable = disease %>% 
+                  dplyr::recode("CD" = "1",
+                                "UC" = "0",
+                                .missing = NA_character_))
+metadata_filter_tmp <- 
+  metadata_tmp %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
+metadata_tmp <- metadata_tmp %>% 
+  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
+  dplyr::filter(available == 2)
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
+dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+l_results[[test_tmp]] <- MMUPHin::lm.meta(
+  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
+  batch = "study_site",
+  exposure = "test_variable",
+  exposure.values = "1",
+  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+  covariates.random = "subject_accession",
+  data = metadata_tmp,
+  directory = dir_output.tmp
+)
+
+# antibiotics
+test_tmp <- "antibiotics"
+metadata_tmp <- metadata_test %>% 
+  dplyr::filter(!is.na(antibiotics), disease %in% c("CD", "UC")) %>% 
+  dplyr::mutate(test_variable = antibiotics %>% 
+                  dplyr::recode("y" = "1",
+                                "n" = "0",
+                                .missing = NA_character_))
+metadata_filter_tmp <- 
+  metadata_tmp %>% 
+  dplyr::group_by(study_site_disease) %>% 
+  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
+metadata_tmp <- metadata_tmp %>% 
+  dplyr::left_join(metadata_filter_tmp, by = "study_site_disease") %>% 
+  dplyr::filter(available == 2)
+rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
+dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+l_results[[test_tmp]] <- MMUPHin::lm.meta(
+  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
+  batch = "study_site_disease",
+  exposure = "test_variable",
+  exposure.values = "1",
+  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+  covariates.random = "subject_accession",
+  data = metadata_tmp,
+  directory = dir_output.tmp
+)
+
+df_results <- l_results %>% 
+  purrr::imap_dfr(
+    function(i_result, test) {
+      i_result$meta.results$`1` %>% 
+        dplyr::select(Feature, Exposure, Coefficient, Standard.error, 
+                      P.val, P.bonf, Q.fdr) %>% 
+        dplyr::mutate(test = test)
+    }
+  )
+tb_filter <- df_results %>% 
+  dplyr::filter(!is.na(Coefficient)) %>% 
+  dplyr::group_by(Feature) %>% 
+  dplyr::summarise(min_Q = min(Q.fdr)) %>% 
+  dplyr::arrange(min_Q)
+# tb_filter <- df_results %>% 
+#   dplyr::filter(!is.na(Coefficient), test == "IBD_vs_control") %>% 
+#   dplyr::group_by(Feature) %>% 
+#   dplyr::summarise(min_Q = min(Q.fdr)) %>% 
+#   dplyr::arrange(min_Q)
+taxa_sig <- tb_filter %>% dplyr::slice(1:30) %>% extract2("Feature")
+df_plot <- df_results %>% 
+  dplyr::filter(Feature %in% taxa_sig) %>% 
+  dplyr::mutate(test = factor(test, 
+                              levels = names(l_results)),
+                Feature = factor(Feature,
+                                 levels = rev(taxa_sig)))
+df_plot <- df_plot %>% 
+  dplyr::mutate(Coefficient = ifelse(Q.fdr < 0.05,
+                                     Coefficient,
+                                     NA))
+p <- df_plot %>% 
+  ggplot(aes(x = test, y = Feature, fill = Coefficient)) +
+  geom_tile() +
+  scale_fill_gradient2(low="blue", mid = "white", high="red", 
+                        na.value="grey50")
+ggsave(filename = "results/4-association/Maaslin2.pdf",
+         p, width = 10, height = 8)
+df_results %>% 
+  dplyr::filter(test == "antibiotics") %>% 
+  dplyr
+```
+
