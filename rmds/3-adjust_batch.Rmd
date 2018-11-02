@@ -10,9 +10,9 @@ output:
 - Adjust batch within studies (if available).
 - Adjust batch across studies.
 - Overview of studies.
-* Heatmap of top abundant taxa
 * Ordination
-* Permanova quantification
+* Heatmap of top abundant taxa
+
 ```{r setup, echo = FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
@@ -30,239 +30,268 @@ print(studies)
 load("data/phyloseq/genera.RData")
 mat_otu <- otu_table2(phylo_genera)
 metadata <- sample_data2(phylo_genera)
+load("data/distance/distance_genera.RData")
+# dist_genera <- phylo_genera %>% 
+#   transform_sample_counts(tss) %>% 
+#   phyloseq::distance(method = "bray")
+# save(dist_genera, file = "data/distance/distance_genera.RData")
+n_permutations <- 2 # set # permuations for PERMANOVA
+
+
+dir.create(paste0(dir_output, "adjust.batch_batches/"), 
+           recursive = TRUE, showWarnings = FALSE)
 studies_batch <- metadata %>% 
   dplyr::group_by(dataset_name) %>% 
   dplyr::summarise(has_batch = any(!is.na(batch))) %>% 
   dplyr::filter(has_batch) %>% 
   extract2("dataset_name")
 mat_otu_adj <- mat_otu
-dir.create(paste0(dir_output, "adjust.batch_batches/"), 
-           recursive = TRUE, showWarnings = FALSE)
+l_fit_adonis <- list()
 for(study in studies_batch) {
   samples_tmp <- rownames(metadata)[metadata$dataset_name == study &
                                       !is.na(metadata$batch)]
-  cat("Study", study, "has", length(samples_tmp), " samples with",
+  cat("Study", study, "has", length(samples_tmp), "samples with",
       dplyr::n_distinct(metadata[samples_tmp, ]$batch), "batches.\n")
   mat_otu_tmp <- MMUPHin::adjust.batch(feature.count = mat_otu[, samples_tmp],
                                        batch = "batch",
-                                       data = metadata[samples_tmp, ])
+                                       data = metadata[samples_tmp, ],
+                                       verbose = FALSE,
+                                       diagnostics = TRUE)
   ggsave(filename = paste0(dir_output, "adjust.batch_batches/", study, ".pdf"),
          width = 8, height = 4)
+  
+  dist_before <- dist_genera %>% subset_distance(samples_tmp)
+  dist_after <- mat_otu_tmp %>% phyloseq::otu_table(taxa_are_rows = TRUE) %>% 
+    transform_sample_counts(tss) %>% 
+    phyloseq::distance(method = "bray")
+  # PERMANOVA
+  l_fit_adonis[[study]] <- 
+    list(before = dist_before, after = dist_after) %>% 
+    purrr::map(~vegan::adonis(. ~ batch, data = metadata[samples_tmp, ], 
+                              permutations = n_permutations))
+  # Ordination
+  tb_ordinate <- list(before = dist_before,
+                      after = dist_after) %>% 
+    purrr::imap_dfr(function(dist, adjust) {
+      as.data.frame(
+        ape::pcoa(D = dist)$vectors
+      ) %>% 
+        tibble::rownames_to_column() %>% 
+        dplyr::mutate(adjust = adjust)
+    }) %>% 
+    dplyr::left_join(metadata[samples_tmp, ] %>% tibble::rownames_to_column(),
+                     by = "rowname")
+  p <- tb_ordinate %>% 
+    dplyr::mutate(adjust = factor(adjust, levels = c("before", "after"))) %>% 
+    ggplot(aes(x = Axis.1, y = Axis.2, color = batch)) +
+    geom_point() + 
+    facet_grid(.~adjust) + coord_fixed() +
+    ggtitle(paste0("Study=", study, "\n",
+                   "Before R2=", 
+                   round(l_fit_adonis[[study]]$before$aov.tab["batch", "R2"] * 100, 
+                         digits = 4), "\n",
+                   "After R2=", 
+                   round(l_fit_adonis[[study]]$after$aov.tab["batch", "R2"] * 100, 
+                         digits = 4), "\n"))
+  ggsave(filename = paste0(dir_output, "adjust.batch_batches/", study, "_ordinate.pdf"),
+         p, width = 14, height = 5)
+  
   mat_otu_adj[, samples_tmp] <- mat_otu_tmp
-  # dist1 <- mat_otu[, samples_tmp] %>% otu_table(taxa_are_rows = TRUE) %>% 
-  #   phyloseq::distance(method = "bray") 
-  # dist2 <- mat_otu_tmp %>% otu_table(taxa_are_rows = TRUE) %>%
-  #   phyloseq::distance(method = "bray") 
-  # vegan::adonis(dist1 ~ batch, data = metadata[samples_tmp, ], permutations = 2) %>% print
-  # vegan::adonis(dist2 ~ batch, data = metadata[samples_tmp, ], permutations = 2) %>% print
 }
 phylo_genera_adj <- phylo_genera
 otu_table(phylo_genera_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
+
+# Overall before vs. after for batch adjustment
+tb_adjBatch <- l_fit_adonis %>% 
+  purrr::imap_dfr(function(i_list, study) {
+    i_list %>% purrr::imap_dfr(function(i_fit_adonis, adjust) {
+      tibble::tibble(n_samples = i_fit_adonis$aov.tab["Total", "Df"] + 1,
+                     n_batch = i_fit_adonis$aov.tab["batch", "Df"] + 1,
+                     R2 = i_fit_adonis$aov.tab["batch", "R2"],
+                     Pval = i_fit_adonis$aov.tab["batch", "Pr(>F)"],
+                     adjust = adjust)
+    }) %>% 
+      dplyr::mutate(study = study)
+  }) %>% 
+  dplyr::mutate(adjust = factor(adjust, levels = c("before", "after")),
+                study = factor(study, levels = studies)) %>% 
+  dplyr::arrange(study, adjust)
+tb_adjBatch %>% readr::write_tsv(paste0(dir_output, "adjust.batch_batches/", "R2_summary.tsv")) %>% 
+  print %>% 
+  ggplot(aes(x = study, y = R2, fill = adjust)) +
+  geom_bar(stat = "identity", position = position_dodge())
+ggsave(filename = paste0(dir_output, "adjust.batch_batches/", "R2_summary.pdf"),
+       width = 6, height = 4)
 ```
+
 # Perform study adjustment
 ```{r study adjustment}
-mat_otu_adj2 <- MMUPHin::adjust.batch(feature.count = mat_otu_adj,
-                                      batch = "dataset_name",
-                                      covariates = c("disease", "body_site"),
-                                      data = metadata)
+mat_otu_adj <- MMUPHin::adjust.batch(feature.count = mat_otu_adj,
+                                     batch = "dataset_name",
+                                     covariates = c("disease", "body_site"),
+                                     data = metadata)
 ggsave(filename = paste0(dir_output, "adjust.batch_studies.pdf"), 
        width = 8,
        height = 4)
-phylo_genera_adj2 <- phylo_genera
-otu_table(phylo_genera_adj2) <- otu_table(mat_otu_adj2, taxa_are_rows = TRUE)
-dist_genera <- phylo_genera %>% 
-  transform_sample_counts(tss) %>% 
-  phyloseq::distance(method = "bray")
-save(dist_genera, file = paste0(dir_output, "distance_genera.RData"))
-dist_genera_adj <- phylo_genera_adj2 %>% 
-  transform_sample_counts(tss) %>% 
-  phyloseq::distance(method = "bray")
-save(dist_genera_adj, file = paste0(dir_output, "distance_genera_adj.RData"))
-vegan::adonis(dist_genera ~ dataset_name, data = metadata, permutations = 2)
-vegan::adonis(dist_genera ~ body_site + disease + dataset_name, data = metadata, permutations = 2)
 
-vegan::adonis(dist_genera_adj ~ dataset_name, data = metadata, permutations = 2)
-vegan::adonis(dist_genera_adj ~ body_site + disease + dataset_name, data = metadata, permutations = 2)
+otu_table(phylo_genera_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
+# dist_genera_adj <- phylo_genera_adj %>% 
+#   transform_sample_counts(tss) %>% 
+#   phyloseq::distance(method = "bray")
+# save(dist_genera_adj, file = "data/distance/distance_genera_adj.RData")
+load("data/distance/distance_genera_adj.RData")
+l_dist <- list(before = dist_genera, after = dist_genera_adj)
+l_fit_adonis <- l_dist %>% 
+  purrr::map(~vegan::adonis(. ~ dataset_name, data = metadata, 
+                            permutations = n_permutations))  
+l_fit_adonisCond <- l_dist %>% 
+  purrr::map(~vegan::adonis(. ~ disease + body_site + dataset_name, 
+                            data = metadata, 
+                            permutations = n_permutations))  
+# ordinate_before <- ape::pcoa(D = dist_genera)
+# ordinate_after <- ape::pcoa(D = dist_genera_adj)
+# save(ordinate_before, file = "data/distance/ordiante_before.RData")
+# save(ordinate_after, file = "data/distance/ordiante_after.RData")
+load("data/distance/ordiante_before.RData")
+load("data/distance/ordiante_after.RData")
 ```
-
-Examine alpha diversity.
-```{r "alpha diversity across studies"}
-tb_long <- phylo_species_filtered %>% 
-  transform_sample_counts(tss) %>% 
-  phyloseq_to_tb()
-
-dist_before
-tb_rankFeature <- tb_long %>% 
-  dplyr::group_by(feature) %>% 
-  dplyr::summarise(mean_abundance = mean(abundance)) %>% 
-  dplyr::mutate(rank = rank(-mean_abundance, ties.method = "min")) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::mutate(feature_select = rank <= 50)
-tb_heatmap <- tb_long %>% 
-  dplyr::left_join(tb_rankFeature, by = "feature") %>% 
-  dplyr::filter(feature_select)
-
-library(gplots)
-mat_heatmap <- tb_heatmap %>% 
-  dplyr::select(feature, rownames, abundance) %>% 
-  tidyr::spread(key = rownames, value = abundance) %>% 
-  tibble::column_to_rownames("feature") %>% 
-  as.matrix()
-heatmap.2(mat_heatmap)
-tb_tmp <- studies %>% 
-  purrr::map_dfr(function(study) {
-    tibble::tibble(
-      taxonamy = c("species",
-                   "genera"),
-      N_taxa = c(
-        phyloseq::ntaxa(l_species[[study]]),
-        phyloseq::ntaxa(l_genera[[study]])),
-      N_samples = c(
-        phyloseq::nsamples(l_species[[study]]),
-        phyloseq::nsamples(l_genera[[study]])),
-      median_log10LibSize = c(
-        l_species[[study]] %>% 
-          phyloseq::sample_sums() %>% 
-          add(1) %>% 
-          log10() %>% 
-          median(),
-        l_genera[[study]] %>% 
-          phyloseq::sample_sums() %>% 
-          add(1) %>% 
-          log10() %>% 
-          median()),
-      study = study
-    )
+# Ordination figures
+```{r ordination}
+# A whole bunch of ordination
+dir.create(paste0(dir_output, "ordination/"))
+list(1:2, 3:4) %>% 
+  purrr::walk(function(axes) {
+    # study
+    colors_study <- c("RISK" = "black",
+                      "PROTECT" = "grey",
+                      gg_color_hue(values = setdiff(studies, c("RISK", "PROTECT"))))
+    p1 <- phyloseq::plot_ordination(phylo_genera, 
+                                    ordinate_before, 
+                                    axes = axes,
+                                    color = "dataset_name") +
+      scale_color_manual(values = colors_study) +
+      ggtitle(paste0("Before R2=", 
+                     round(l_fit_adonis$before$aov.tab["dataset_name", "R2"] * 100, 
+                           digits = 2),
+                     "\n",
+                     "conditional R2=",
+                     round(l_fit_adonisCond$before$aov.tab["dataset_name", "R2"] * 100, 
+                           digits = 2)))
+    p2 <- phyloseq::plot_ordination(phylo_genera, 
+                                    ordinate_after, 
+                                    axes = axes,
+                                    color = "dataset_name") +
+      scale_color_manual(values = colors_study) +
+      ggtitle(paste0("After R2=", 
+                     round(l_fit_adonis$after$aov.tab["dataset_name", "R2"] * 100, 
+                           digits = 2),
+                     "\n",
+                     "conditional R2=",
+                     round(l_fit_adonisCond$after$aov.tab["dataset_name", "R2"] * 100, 
+                           digits = 2)))
+    cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+      ggsave(filename = paste0(dir_output, "ordination/study", 
+                               paste(axes, collapse = ""),".pdf"),
+             width = 15, height = 5)
+    
+    tb_plot <- metadata %>%
+      tibble::rownames_to_column() %>% 
+      dplyr::left_join(ordinate_after$vectors[, axes] %>% 
+                         as.data.frame %>% set_colnames(c("x.Axis", "y.Axis")) %>% 
+                         tibble::rownames_to_column(), 
+                       by = "rowname")
+    # disease
+    colors_disease <- c(gg_color_hue(c("CD", "UC")), "control" = "black")
+    p1 <- tb_plot %>% dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+      scale_color_manual(values = colors_disease) + ggtitle("Disease") + coord_fixed()
+    # p2 <- tb_plot %>% dplyr::filter(disease != "control") %>% 
+    #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+    #   scale_color_manual(values = colors_disease, guide = FALSE)
+    # p3 <- tb_plot %>% dplyr::filter(disease != "UC") %>% 
+    #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+    #   scale_color_manual(values = colors_disease, guide = FALSE)
+    # p4 <- tb_plot %>% dplyr::filter(disease != "CD") %>% 
+    #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+    #   scale_color_manual(values = colors_disease, guide = FALSE)
+    # cowplot::plot_grid(p1, cowplot::plot_grid(p2, p3, p4, ncol = 1), 
+    #                    nrow = 1, rel_widths = c(3.5, 1)) %>% 
+    #   ggsave(filename = paste0(dir_output, "ordination/disease", 
+    #                            paste(axes, collapse = ""),".pdf"),
+    #          width = 20, height = 12)
+    ggsave(filename = paste0(dir_output, "ordination/disease", 
+                             paste(axes, collapse = ""),".pdf"), p1,
+           width = 7, height = 6)
+    p1 <- tb_plot %>% 
+      dplyr::filter(!is.na(L.cat), L.cat %in% c("L1", "L2", "L3")) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = L.cat)) + geom_point() + 
+      coord_fixed() + ggtitle("CD location category")
+    p2 <- tb_plot %>% 
+      dplyr::filter(!is.na(B.cat)) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = B.cat)) + geom_point() + 
+      coord_fixed() + ggtitle("CD behaviour category")
+    p3 <- tb_plot %>% 
+      dplyr::filter(!is.na(E.cat)) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = E.cat)) + geom_point() + 
+      coord_fixed() + ggtitle("UC extent cateogry")
+    cowplot::plot_grid(p1, p2, p3, nrow = 1) %>% 
+      ggsave(filename = paste0(dir_output, "ordination/disease_subtype", 
+                               paste(axes, collapse = ""),".pdf"),
+             ., width = 17, height = 5)
+    
+    
+    # body site
+    p1 <- tb_plot %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = sample_type)) + geom_point() + 
+      coord_fixed() + ggtitle("biopsy vs. stool")
+    p2 <- tb_plot %>% 
+      dplyr::filter(sample_type %in% "biopsy") %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = body_site)) + geom_point() + 
+      coord_fixed() + ggtitle("biopsy site")
+    cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+      ggsave(filename = paste0(dir_output, "ordination/bodysite", 
+                               paste(axes, collapse = ""),".pdf"),
+             ., width = 12, height = 5)
+    
+    # age
+    p1 <- tb_plot %>% 
+      dplyr::filter(!is.na(age)) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = age <= 18)) + geom_point() + 
+      coord_fixed() + ggtitle("age (sample collection)")
+    p2 <- tb_plot %>% 
+      dplyr::mutate(A.cat = ifelse(!is.na(age_at_diagnosis.cat),
+                                   age_at_diagnosis.cat,
+                                   dplyr::case_when(
+                                     age_at_diagnosis < 16 ~ "A1",
+                                     age_at_diagnosis < 40 ~ "A2",
+                                     !is.na(age_at_diagnosis) ~ "A3",
+                                     TRUE ~ NA_character_
+                                   ))) %>% 
+      dplyr::filter(!is.na(A.cat)) %>% 
+      ggplot(aes(x = x.Axis, y = y.Axis, color = A.cat)) + geom_point() + 
+      coord_fixed() + ggtitle("age (diagnosis)")
+    cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+      ggsave(filename = paste0(dir_output, "ordination/age", 
+                               paste(axes, collapse = ""),".pdf"),
+             ., width = 12, height = 5)
+    
+    # treatment
+    colors_treatment <- gg_color_hue(c("y", "n"))
+    l_p <- c("CD", "UC") %>% 
+      purrr::map(function(i_disease) {
+        c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA") %>% 
+          purrr::map(function(i_treatment) {
+            tb_plot %>% 
+              dplyr::filter(disease == i_disease, 
+                            !is.na(!!rlang::sym(i_treatment))) %>% 
+              ggplot(aes(x = x.Axis, y = y.Axis, color = !!rlang::sym(i_treatment))) +
+              geom_point() + coord_fixed() + ggtitle(paste0(i_disease, ", ", i_treatment)) +
+              scale_color_manual(values = colors_treatment)
+          })
+      }) %>% purrr::reduce(c)
+    cowplot::plot_grid(plotlist = l_p, nrow = 2) %>% 
+      ggsave(filename = paste0(dir_output, "ordination/treatment", 
+                               paste(axes, collapse = ""),".pdf"),
+             ., width = 20, height = 8)
   })
-p1 <- tb_tmp %>% 
-  ggplot(aes(x = N_samples,
-             y = N_taxa)) +
-  geom_point() +
-  ggrepel::geom_text_repel(aes(label = study)) +
-  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
-             scales = "free_y")
-p2 <- tb_tmp %>% 
-  ggplot(aes(x = median_log10LibSize,
-             y = N_taxa)) +
-  geom_point() +
-  ggrepel::geom_text_repel(aes(label = study)) +
-  facet_wrap(~factor(taxonamy, levels = c("species", "genera")),
-             scales = "free_y")
-print(p1)
-print(p2)
-plot_grid(p1, p2, nrow = 1) %>% 
-  cowplot_title("Alpha diversity across studies") %>% 
-  ggsave(file = paste0(dir.output, "fig_alphaDiversity.pdf"),
-         width = 15,
-         heigh = 5)
 ```
-Examine uniquely present and absent taxa.
-```{r "dataset specific species"}
-uniqTaxa <- unique_taxa(phylo_species, name_study = "dataset_name")
-uniqTaxa$tb_presence %>% 
-  dplyr::filter(!duplicated(feature)) %>% 
-  dplyr::group_by(n_present) %>% 
-  dplyr::summarise(N = n()) %>% 
-  t() %>% 
-  DT::datatable()
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniquePresent.pdf"),
-         plot = .,
-         width = 40,
-         height = 10)
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::filter(mean_abundance > 1e-4) %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniquePresentZoom.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-(uniqTaxa$tb_uniqAbs %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_SpeciesUniqueAbsent.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-
-uniqTaxa <- unique_taxa(phylo_genera, name_study = "dataset_name")
-uniqTaxa$tb_presence %>% 
-  dplyr::filter(!duplicated(feature)) %>% 
-  dplyr::group_by(n_present) %>% 
-  dplyr::summarise(N = n()) %>% 
-  t() %>% 
-  DT::datatable()
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniquePresent.pdf"),
-         plot = .,
-         width = 40,
-         height = 10)
-(uniqTaxa$tb_uniqPres %>% 
-    dplyr::filter(mean_abundance > 1e-4) %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniquePresentZoom.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-(uniqTaxa$tb_uniqAbs %>% 
-    dplyr::arrange(study, mean_abundance) %>% 
-    dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    ggplot(aes(x = feature, y = mean_abundance, color = study)) +
-    geom_point() +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    coord_flip()) %>% 
-  ggsave(filename = paste0(dir.output, "fig_GeneraUniqueAbsent.pdf"),
-         plot = .,
-         width = 15,
-         height = 10)
-
-mat_tax_tmp <- tax_table2(l_species$Jansson_Lamendella_Crohns)
-mat_tax_tmp %>% 
-  tibble::as_tibble(rownames = "otu_cluster") %>% 
-  dplyr::filter(Rank6 == "g__Oceanobacillus")
-mat_tax_tmp <- tax_table2(l_species$MucosalIBD)
-mat_tax_tmp %>% 
-  tibble::as_tibble(rownames = "otu_cluster") %>% 
-  dplyr::filter(Rank7 == "s__blattae")
-```
-```{r "Filter taxa"}
-phylo_species_filtered <- phylo_species %>% 
-  prune_taxaSamples(kOverA2(k = phyloseq::nsamples(phylo_species) * 0.01,
-                            A = 1e-4))
-phylo_genera_filtered <- phylo_species_filtered %>% 
-  phyloseq::tax_glom("Rank6")
-save(phylo_species_filtered, file = "data/phyloseq/species_filtered.RData")
-save(phylo_genera_filtered, file = "data/phyloseq/genera_filtered.RData")
-```
-
-
