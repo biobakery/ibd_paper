@@ -122,8 +122,22 @@ ggsave(filename = paste0(dir_output, "PERMANOVA.pdf"), width = 5, height = 6)
 ```{r Maaslin2}
 dir_outputChunk <- paste0(dir_output, "Maaslin2/")
 dir.create(dir_outputChunk)
-metadata_test <- metadata_test %>% 
-  dplyr::mutate(study_site = paste(dataset_name, 
+metadata_test <- metadata %>% 
+  dplyr::mutate(B.cat_fill = fill_na(B.cat),
+                L.cat_fill = fill_na(L.cat),
+                E.cat_fill = fill_na(E.cat),
+                race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                age_at_diagnosis.cat_fill = 
+                  dplyr::case_when(age_at_diagnosis < 18 ~ "A1",
+                                   age_at_diagnosis < 40 ~ "A2",
+                                   !is.na(age_at_diagnosis) ~ "A3",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                study_site = paste(dataset_name, 
                                    sample_type, 
                                    sep = "_"),
                 study_site_disease = paste0(dataset_name, 
@@ -149,25 +163,26 @@ l_results <- list()
 for(test in names(l_tests)) {
   print(test)
   test_param <- l_tests[[test]]
-  result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-                                      data = metadata_test %>% 
-                                        dplyr::filter(!!test_param$exprs_filter),
-                                      test_variable = test_param$test_variable,
-                                      contrasts = test_param$contrasts,
-                                      batch_variable = test_param$batch_variable,
-                                      covariates = test_param$covariates,
-                                      covariates.random = test_param$covariates.random,
-                                      moderator_variables = 
-                                        test_param$moderator_variables,
-                                      n_features = 50,
-                                      normalization = "TSS",
-                                      transform = "AST",
-                                      analysis_method = "LM",
-                                      rma_method = "REML",
-                                      directory = paste0(dir_outputChunk, test, "/"),
-                                      forest.plots = TRUE,
-                                      verbose = FALSE)
-  save(result, file = paste0(dir_outputChunk, test, "/result.RData"))
+  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+  #                                     data = metadata_test %>% 
+  #                                       dplyr::filter(!!test_param$exprs_filter),
+  #                                     test_variable = test_param$test_variable,
+  #                                     contrasts = test_param$contrasts,
+  #                                     batch_variable = test_param$batch_variable,
+  #                                     covariates = test_param$covariates,
+  #                                     covariates.random = test_param$covariates.random,
+  #                                     moderator_variables = 
+  #                                       test_param$moderator_variables,
+  #                                     n_features = 50,
+  #                                     normalization = "TSS",
+  #                                     transform = "AST",
+  #                                     analysis_method = "LM",
+  #                                     rma_method = "REML",
+  #                                     directory = paste0(dir_outputChunk, test, "/"),
+  #                                     forest.plots = TRUE,
+  #                                     verbose = FALSE)
+  # save(result, file = paste0(dir_outputChunk, test, "/result.RData"))
+  load(paste0(dir_outputChunk, test, "/result.RData"))
   l_results[[test]] <- result
 }
 
