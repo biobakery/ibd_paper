@@ -10,7 +10,7 @@ df_print: paged
 - PERMANOVA
 - Maaslin2
 
-```{r setup, echo = FALSE}
+```{r setup, echo = FALSE}                                           
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
@@ -120,193 +120,82 @@ ggsave(filename = paste0(dir_output, "PERMANOVA.pdf"), width = 5, height = 6)
 
 # Maaslin2
 ```{r Maaslin2}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/")
+dir.create(dir_outputChunk)
 metadata_test <- metadata_test %>% 
-  dplyr::mutate(study_site = paste0(dataset_name, sample_type),
-                study_site_disease = paste0(dataset_name, sample_type, disease),
+  dplyr::mutate(study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                study_site_disease = paste0(dataset_name, 
+                                            sample_type, 
+                                            disease, sep = "_"),
                 IBD = disease %>% 
                   dplyr::recode("CD" = "IBD",
                                 "UC" = "IBD",
                                 "control" = "control",
-                                .default = NA_character_))
-mat_otu_adj <- phylo_genera_adj %>% transform_sample_counts(tss) %>%  otu_table2
+                                .default = NA_character_),
+                subject_accession_longitudinal =
+                  ifelse(dataset_name %in%
+                           studies_longitudinal,
+                         subject_accession,
+                         NA_character_))
+mat_otu_adj <- phylo_genera_adj %>% 
+  transform_sample_counts(tss) %>%  
+  otu_table2
 
+# list of tests to carry out
+source("assets/ma_tests.R")
 l_results <- list()
-# IBD vs contrl
-test_tmp <- "IBD_vs_control"
-metadata_tmp <- metadata_test %>% 
-  dplyr::filter(!is.na(IBD)) %>% 
-  dplyr::mutate(test_variable = IBD %>% 
-                  dplyr::recode("IBD" = "1",
-                                "control" = "0",
-                                .missing = NA_character_))
-metadata_filter_tmp <- 
-  metadata_tmp %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
-metadata_tmp <- metadata_tmp %>% 
-  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
-  dplyr::filter(available == 2)
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
+for(test in names(l_tests)) {
+  print(test)
+  test_param <- l_tests[[test]]
+  result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+                                      data = metadata_test %>% 
+                                        dplyr::filter(!!test_param$exprs_filter),
+                                      test_variable = test_param$test_variable,
+                                      contrasts = test_param$contrasts,
+                                      batch_variable = test_param$batch_variable,
+                                      covariates = test_param$covariates,
+                                      covariates.random = test_param$covariates.random,
+                                      moderator_variables = 
+                                        test_param$moderator_variables,
+                                      n_features = 50,
+                                      normalization = "TSS",
+                                      transform = "AST",
+                                      analysis_method = "LM",
+                                      rma_method = "REML",
+                                      directory = paste0(dir_outputChunk, test, "/"),
+                                      forest.plots = TRUE,
+                                      verbose = FALSE)
+  save(result, file = paste0(dir_outputChunk, test, "/result.RData"))
+  l_results[[test]] <- result
+}
 
-dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
-
-metadata_tmp <- metadata_tmp %>% dplyr::filter(dataset_name == "Jansson_Lamendella_Crohns")
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
-test <- Maaslin2::Maaslin2(input_data = mat_otu_adj[, rownames(metadata_tmp)],
-                           input_metadata = metadata_tmp,
-                           output = dir_output.tmp,
-                           min_abundance = 0,
-                           min_prevalence = 0,
-                           normalization = "TSS",
-                           transform = "AST",
-                           analysis_method = "LM",
-                           random_effects = "subject_accession",
-                           fixed_effects = "test_variable",
-                           standardize = FALSE)
-test <- Maaslin2::Maaslin2(input_data = mat_otu_adj[, rownames(metadata_tmp)],
-                           input_metadata = metadata_tmp,
-                           output = dir_output.tmp,
-                           min_abundance = 0,
-                           min_prevalence = 0,
-                           normalization = "TSS",
-                           transform = "AST",
-                           analysis_method = "LM",
-                           random_effects = "subject_accession",
-                           fixed_effects = c("test_variable", 
-                                             "age.cat_fill",
-                                             "gender_fill",
-                                             "race_fill"),
-                           standardize = FALSE)
-
-
+df_test <- result$result$ind.results %>% 
+  purrr::reduce(rbind) %>% 
+  dplyr::filter(feature == "k__Archaea|p__Euryarchaeota|c__Methanobacteria|o__Methanobacteriales|f__Methanobacteriaceae|g__Methanobrevibacter|NA") %>% 
+  dplyr::filter(!is.na(coef)) %>% 
+  dplyr::mutate(moderator = 
+                  batch %>% 
+                  stringr::str_replace_all("^.*\\_", ""))
+rma.test <- metafor::rma.uni(yi = df_test$coef,
+                             sei = df_test$stderr,
+                             method = "FE",
+                             control = list(threshold = 1e-10))$I2
+rma.test.mod <- metafor::rma.uni(yi = df_test$coef,
+                                 sei = df_test$stderr,
+                                 mod = ~.,
+                                 data = df_test[, "moderator", drop = FALSE],
+                                 method = "REML",
+                                 control = list(threshold = 1e-10))
+df_sim <- data.frame(yi = c(4, -4, 5, -5), sei = rep(1, 4),
+                     mod = c(1, 1, 0, 0))
+test <- metafor::rma.uni(df_sim$yi, sei = df_sim$sei, method = "ML")
+test <- metafor::rma.uni(df_sim$yi, sei = df_sim$sei, mods = df_sim$mod, method = "ML")
+dir_output.tmp <- paste0(dir_outputChunk, "Maaslin2/", test, "/")
 dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
-l_results[[test_tmp]] <- MMUPHin::lm.meta(
-  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
-  batch = "study_site",
-  exposure = "test_variable",
-  exposure.values = "1",
-  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
-  covariates.random = "subject_accession",
-  data = metadata_tmp,
-  directory = dir_output.tmp
-)
 
 
-# CD vs contrl
-test_tmp <- "CD_vs_control"
-metadata_tmp <- metadata_test %>% 
-  dplyr::filter(disease %in% c("CD", "control")) %>% 
-  dplyr::mutate(test_variable = disease %>% 
-                  dplyr::recode("CD" = "1",
-                                "control" = "0",
-                                .missing = NA_character_))
-metadata_filter_tmp <- 
-  metadata_tmp %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
-metadata_tmp <- metadata_tmp %>% 
-  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
-  dplyr::filter(available == 2)
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
-dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
-dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
-l_results[[test_tmp]] <- MMUPHin::lm.meta(
-  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
-  batch = "study_site",
-  exposure = "test_variable",
-  exposure.values = "1",
-  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
-  covariates.random = "subject_accession",
-  data = metadata_tmp,
-  directory = dir_output.tmp
-)
-
-# UC vs contrl
-test_tmp <- "UC_vs_control"
-metadata_tmp <- metadata_test %>% 
-  dplyr::filter(disease %in% c("UC", "control")) %>% 
-  dplyr::mutate(test_variable = disease %>% 
-                  dplyr::recode("UC" = "1",
-                                "control" = "0",
-                                .missing = NA_character_))
-metadata_filter_tmp <- 
-  metadata_tmp %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
-metadata_tmp <- metadata_tmp %>% 
-  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
-  dplyr::filter(available == 2)
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
-dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
-dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
-l_results[[test_tmp]] <- MMUPHin::lm.meta(
-  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
-  batch = "study_site",
-  exposure = "test_variable",
-  exposure.values = "1",
-  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
-  covariates.random = "subject_accession",
-  data = metadata_tmp,
-  directory = dir_output.tmp
-)
-
-# CD vs UC
-test_tmp <- "CD_vs_UC"
-metadata_tmp <- metadata_test %>% 
-  dplyr::filter(disease %in% c("CD", "UC")) %>% 
-  dplyr::mutate(test_variable = disease %>% 
-                  dplyr::recode("CD" = "1",
-                                "UC" = "0",
-                                .missing = NA_character_))
-metadata_filter_tmp <- 
-  metadata_tmp %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
-metadata_tmp <- metadata_tmp %>% 
-  dplyr::left_join(metadata_filter_tmp, by = "study_site") %>% 
-  dplyr::filter(available == 2)
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
-dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
-dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
-l_results[[test_tmp]] <- MMUPHin::lm.meta(
-  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
-  batch = "study_site",
-  exposure = "test_variable",
-  exposure.values = "1",
-  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
-  covariates.random = "subject_accession",
-  data = metadata_tmp,
-  directory = dir_output.tmp
-)
-
-# antibiotics
-test_tmp <- "antibiotics"
-metadata_tmp <- metadata_test %>% 
-  dplyr::filter(!is.na(antibiotics), disease %in% c("CD", "UC")) %>% 
-  dplyr::mutate(test_variable = antibiotics %>% 
-                  dplyr::recode("y" = "1",
-                                "n" = "0",
-                                .missing = NA_character_))
-metadata_filter_tmp <- 
-  metadata_tmp %>% 
-  dplyr::group_by(study_site_disease) %>% 
-  dplyr::summarise(available = dplyr::n_distinct(test_variable, na.rm = TRUE))
-metadata_tmp <- metadata_tmp %>% 
-  dplyr::left_join(metadata_filter_tmp, by = "study_site_disease") %>% 
-  dplyr::filter(available == 2)
-rownames(metadata_tmp) <- metadata_tmp$sample_accession_16S
-dir_output.tmp <- paste0(dir_output, "Maaslin2/MMUPHin/", test_tmp, "/")
-dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
-l_results[[test_tmp]] <- MMUPHin::lm.meta(
-  feature.count = mat_otu_adj[, metadata_tmp$sample_accession_16S],
-  batch = "study_site_disease",
-  exposure = "test_variable",
-  exposure.values = "1",
-  # covariates = c("gender_fill", "race_fill", "age.cat_fill"),
-  covariates.random = "subject_accession",
-  data = metadata_tmp,
-  directory = dir_output.tmp
-)
 
 df_results <- l_results %>% 
   purrr::imap_dfr(
@@ -342,9 +231,9 @@ p <- df_plot %>%
   ggplot(aes(x = test, y = Feature, fill = Coefficient)) +
   geom_tile() +
   scale_fill_gradient2(low="blue", mid = "white", high="red", 
-                        na.value="grey50")
+                       na.value="grey50")
 ggsave(filename = "results/4-association/Maaslin2.pdf",
-         p, width = 10, height = 8)
+       p, width = 10, height = 8)
 df_results %>% 
   dplyr::filter(test == "antibiotics") %>% 
   dplyr

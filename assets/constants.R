@@ -1,11 +1,13 @@
 lib.toLoad <- 
   c("magrittr", # for easy operators
-    "ggplot2", "cowplot", "ggrepel", # for plotting
-    "DT", # for table formatting
+    "ggplot2", 
     "phyloseq" # for phyloseq objects
   )
 lib.required <- c(lib.toLoad,
                   "tidyverse",
+                  "cowplot", 
+                  "ggrepel", # for plotting
+                  "DT", # for table formatting
                   "hash", "optparse" # for Maaslin2
                   )
 studies <- c("BIDMC-FMT",
@@ -19,4 +21,10 @@ studies <- c("BIDMC-FMT",
              "Pouchitis",
              "PROTECT",
              "RISK")
+studies_longitudinal <- c("Herfarth_CCFA_Microbiome_3B_combined",
+                          "HMP2",
+                          "Jansson_Lamendella_Crohns",
+                          "LSS-PRISM",
+                          "PROTECT")
+  
 dir_processed <- "../ibd_meta_analysis/"

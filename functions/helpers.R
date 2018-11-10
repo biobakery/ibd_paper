@@ -27,6 +27,10 @@ no_label_xaxis <- function() {
   theme(axis.text.x=element_blank(),
         axis.ticks.x=element_blank())
 }
+no_label_yaxis <- function() {
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+}
 gg_color_hue <- function(values = NULL, n = NULL) {
   if(!is.null(values)) {
     if(anyDuplicated(values)) stop("Values should be unique if provided!")
