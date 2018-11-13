@@ -43,6 +43,7 @@ for(study in studies) {
   l_species[[study]] <- phylo_species
   l_genera[[study]] <- phylo_genera
 }
+phylo_otus <- combine_phyloseq(l_otus)
 phylo_species <- combine_phyloseq(l_species)
 phylo_genera <- combine_phyloseq(l_genera)
 ```
@@ -231,11 +232,12 @@ plot_grid(p1, p2, ncol = 1) %>%
 ```
 # Examine uniquely present and absent taxa.
 ```{r "dataset specific species"}
-list(species = phylo_species,
+list(otus = phylo_otus,
+     species = phylo_species,
      genera = phylo_genera) %>% 
   purrr::iwalk(function(phylo, feature_level) {
     tb_long <- phylo %>% 
-      phyloseq::transform_sample_counts(tss) %>% 
+      # phyloseq::transform_sample_counts(tss) %>% 
       phyloseq_to_tb()
     tb_presence <- tb_long %>% 
       dplyr::group_by(feature, dataset_name) %>% 

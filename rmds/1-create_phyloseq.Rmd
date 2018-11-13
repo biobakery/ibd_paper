@@ -14,6 +14,7 @@ output:
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, echo=FALSE}
+rm(list = ls())
 for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
@@ -65,10 +66,14 @@ for(study in studies) {
     dplyr::filter(sample_accession_16S %in% sample_common) %>%
     as.data.frame()
   rownames(metadata) <- metadata$sample_accession_16S
+  
+  mat_tax <- tax_table2(biom)
+  mat_tax <- cbind(mat_tax, otu = rownames(mat_tax))
+  
   phylo <- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
-    phyloseq::tax_table(biom))
+    phyloseq::tax_table(mat_tax))
   print(biom)
   print(phylo)
   dir.create(paste0("data/phyloseq/", study, "/"), 

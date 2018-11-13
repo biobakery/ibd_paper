@@ -17,6 +17,7 @@ output:
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
 for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
