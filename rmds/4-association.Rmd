@@ -6,7 +6,8 @@ output:
 html_document:
 df_print: paged
 ---
-- Perform association analysis on covariates
+# Overview
+Perform association analysis on covariates.
 - PERMANOVA
 - Maaslin2
 
@@ -14,6 +15,7 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
 for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
@@ -24,9 +26,11 @@ dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 # PERMANOVA
 ```{r PERMANOVA}
 print(studies)
+dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
+dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
 load("data/distance/distance_genera_adj.RData")
-n_permutations <- 2 # set # permuations for PERMANOVA
+n_permutations <- 999 # set # permuations for PERMANOVA
 
 metadata <- sample_data2(phylo_genera_adj)
 # manipulate variables to test, so that avoid missing values
@@ -60,6 +64,7 @@ l_fit_adonisMarg <- paste0(c("race",
                       "==\"NA\")", "+", variable)) %>% 
       vegan::adonis(data = metadata_test, permutations = n_permutations)
   })
+save(l_fit_adonisMarg, file = paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
 l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat", 
                              "antibiotics",
                              "immunosuppressants",
@@ -70,16 +75,19 @@ l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat",
                       "==\"NA\")", "+", variable)) %>% 
       vegan::adonis(data = metadata_test, permutations = n_permutations)
   })
+save(l_fit_adonisCond, file = paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
 fit_adonis_disease <- 
   vegan::adonis(dist_genera_adj~disease,
                 data = metadata_test, permutations = n_permutations)
+save(fit_adonis_disease, file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
 fit_adonis_bodySite <- 
   vegan::adonis(dist_genera_adj~sample_type + body_site,
                 data = metadata_test, permutations = n_permutations)
+save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
 fit_adonis_subject <- 
   vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
                 data = metadata_test, permutations = n_permutations)
-
+save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
 tb_marg <- c("race", 
              "gender", 
              "age.cat", 
@@ -117,16 +125,12 @@ tb_plot %>%
   geom_text(aes(label = round(R2*100, digits = 2) %>% paste0("%")), color = "navy")
 ggsave(filename = paste0(dir_output, "PERMANOVA.pdf"), width = 5, height = 6)
 ```
-
 # Maaslin2
 ```{r Maaslin2}
 dir_outputChunk <- paste0(dir_output, "Maaslin2/")
 dir.create(dir_outputChunk)
 metadata_test <- metadata %>% 
-  dplyr::mutate(B.cat_fill = fill_na(B.cat),
-                L.cat_fill = fill_na(L.cat),
-                E.cat_fill = fill_na(E.cat),
-                race_fill = fill_na(race),
+  dplyr::mutate(race_fill = fill_na(race),
                 gender_fill = fill_na(gender),
                 age.cat_fill = 
                   dplyr::case_when(age < 18 ~ "child",
@@ -143,11 +147,6 @@ metadata_test <- metadata %>%
                 study_site_disease = paste0(dataset_name, 
                                             sample_type, 
                                             disease, sep = "_"),
-                IBD = disease %>% 
-                  dplyr::recode("CD" = "IBD",
-                                "UC" = "IBD",
-                                "control" = "control",
-                                .default = NA_character_),
                 subject_accession_longitudinal =
                   ifelse(dataset_name %in%
                            studies_longitudinal,
@@ -164,14 +163,14 @@ for(test in names(l_tests)) {
   print(test)
   test_param <- l_tests[[test]]
   # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-  #                                     data = metadata_test %>% 
+  #                                     data = metadata_test %>%
   #                                       dplyr::filter(!!test_param$exprs_filter),
   #                                     test_variable = test_param$test_variable,
   #                                     contrasts = test_param$contrasts,
   #                                     batch_variable = test_param$batch_variable,
   #                                     covariates = test_param$covariates,
   #                                     covariates.random = test_param$covariates.random,
-  #                                     moderator_variables = 
+  #                                     moderator_variables =
   #                                       test_param$moderator_variables,
   #                                     n_features = 50,
   #                                     normalization = "TSS",
@@ -185,72 +184,38 @@ for(test in names(l_tests)) {
   load(paste0(dir_outputChunk, test, "/result.RData"))
   l_results[[test]] <- result
 }
-
-df_test <- result$result$ind.results %>% 
-  purrr::reduce(rbind) %>% 
-  dplyr::filter(feature == "k__Archaea|p__Euryarchaeota|c__Methanobacteria|o__Methanobacteriales|f__Methanobacteriaceae|g__Methanobrevibacter|NA") %>% 
-  dplyr::filter(!is.na(coef)) %>% 
-  dplyr::mutate(moderator = 
-                  batch %>% 
-                  stringr::str_replace_all("^.*\\_", ""))
-rma.test <- metafor::rma.uni(yi = df_test$coef,
-                             sei = df_test$stderr,
-                             method = "FE",
-                             control = list(threshold = 1e-10))$I2
-rma.test.mod <- metafor::rma.uni(yi = df_test$coef,
-                                 sei = df_test$stderr,
-                                 mod = ~.,
-                                 data = df_test[, "moderator", drop = FALSE],
-                                 method = "REML",
-                                 control = list(threshold = 1e-10))
-df_sim <- data.frame(yi = c(4, -4, 5, -5), sei = rep(1, 4),
-                     mod = c(1, 1, 0, 0))
-test <- metafor::rma.uni(df_sim$yi, sei = df_sim$sei, method = "ML")
-test <- metafor::rma.uni(df_sim$yi, sei = df_sim$sei, mods = df_sim$mod, method = "ML")
-dir_output.tmp <- paste0(dir_outputChunk, "Maaslin2/", test, "/")
-dir.create(dir_output.tmp, recursive = TRUE, showWarnings = FALSE)
+result_all <- l_results %>% 
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>% 
+      tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>% 
+      dplyr::group_by_at(vars(-weight, -study)) %>% 
+      dplyr::arrange(desc(weight)) %>% 
+      dplyr::summarise(max_weight = weight[1],
+                       study_max_weight = study[1]) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::mutate(study_max_weight = study_max_weight %>% 
+                      stringr::str_replace_all("weight\\_", ""),
+                    test = test,
+                    q.fdr_meta = ifelse(k > 2,
+                                        pval,
+                                        NA_real_) %>% 
+                      p.adjust(method = "fdr"))
+  })
+readr::write_tsv(result_all, paste0(dir_outputChunk, "all_results.tsv"))
 
 
-
-df_results <- l_results %>% 
-  purrr::imap_dfr(
-    function(i_result, test) {
-      i_result$meta.results$`1` %>% 
-        dplyr::select(Feature, Exposure, Coefficient, Standard.error, 
-                      P.val, P.bonf, Q.fdr) %>% 
-        dplyr::mutate(test = test)
-    }
-  )
-tb_filter <- df_results %>% 
-  dplyr::filter(!is.na(Coefficient)) %>% 
-  dplyr::group_by(Feature) %>% 
-  dplyr::summarise(min_Q = min(Q.fdr)) %>% 
-  dplyr::arrange(min_Q)
-# tb_filter <- df_results %>% 
-#   dplyr::filter(!is.na(Coefficient), test == "IBD_vs_control") %>% 
-#   dplyr::group_by(Feature) %>% 
-#   dplyr::summarise(min_Q = min(Q.fdr)) %>% 
-#   dplyr::arrange(min_Q)
-taxa_sig <- tb_filter %>% dplyr::slice(1:30) %>% extract2("Feature")
-df_plot <- df_results %>% 
-  dplyr::filter(Feature %in% taxa_sig) %>% 
-  dplyr::mutate(test = factor(test, 
-                              levels = names(l_results)),
-                Feature = factor(Feature,
-                                 levels = rev(taxa_sig)))
-df_plot <- df_plot %>% 
-  dplyr::mutate(Coefficient = ifelse(Q.fdr < 0.05,
-                                     Coefficient,
-                                     NA))
-p <- df_plot %>% 
-  ggplot(aes(x = test, y = Feature, fill = Coefficient)) +
-  geom_tile() +
-  scale_fill_gradient2(low="blue", mid = "white", high="red", 
-                       na.value="grey50")
-ggsave(filename = "results/4-association/Maaslin2.pdf",
-       p, width = 10, height = 8)
-df_results %>% 
-  dplyr::filter(test == "antibiotics") %>% 
-  dplyr
+# disease status
+i_tests <- c("CD_vs_control", "UC_vs_control", "CD_vs_UC")
+plot_metaAnalysis(l_results, i_tests, "disease_status", dir_outputChunk)
+# disease subtype
+i_tests <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
+             "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
+plot_metaAnalysis(l_results, i_tests, "disease_subtype", dir_outputChunk)
+# treatment
+i_tests <- c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA")
+plot_metaAnalysis(l_results, i_tests, "treatment", dir_outputChunk)
+# covariates
+i_tests <- c("age", "gender")
+plot_metaAnalysis(l_results, i_tests, "covariates", dir_outputChunk)
 ```
 

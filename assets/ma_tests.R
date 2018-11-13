@@ -1,7 +1,8 @@
 l_tests <- list(
   # disease
-  IBD_vs_control = list(test_variable = "IBD",
-                        contrasts = list(IBD = "1",
+  IBD_vs_control = list(test_variable = "disease",
+                        contrasts = list(CD = "1",
+                                         UC = "1",
                                          control = "0"),
                         batch_variable = "study_site",
                         covariates = c("gender_fill", "race_fill", "age.cat_fill"),
