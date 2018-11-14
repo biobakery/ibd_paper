@@ -29,7 +29,7 @@ print(studies)
 dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
 dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
-load("data/distance/distance_genera_adj.RData")
+load("data/distance/dist_genera_adj.RData")
 n_permutations <- 999 # set # permuations for PERMANOVA
 
 metadata <- sample_data2(phylo_genera_adj)
@@ -55,45 +55,51 @@ metadata_test <- metadata %>%
                 mesalamine_5ASA_fill = fill_na(mesalamine_5ASA))
 
 # whole bunch of PERMANOVA fits
-l_fit_adonisMarg <- paste0(c("race", 
-                             "gender", 
-                             "age.cat", 
-                             "age_at_diagnosis.cat"), "_fill") %>% 
-  purrr::map(function(variable) {
-    as.formula(paste0("dist_genera_adj~(", variable,
-                      "==\"NA\")", "+", variable)) %>% 
-      vegan::adonis(data = metadata_test, permutations = n_permutations)
-  })
-save(l_fit_adonisMarg, file = paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
-l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat", 
-                             "antibiotics",
-                             "immunosuppressants",
-                             "steroids",
-                             "mesalamine_5ASA"), "_fill") %>% 
-  purrr::map(function(variable) {
-    as.formula(paste0("dist_genera_adj~disease+(", variable,
-                      "==\"NA\")", "+", variable)) %>% 
-      vegan::adonis(data = metadata_test, permutations = n_permutations)
-  })
-save(l_fit_adonisCond, file = paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
-fit_adonis_disease <- 
-  vegan::adonis(dist_genera_adj~disease,
-                data = metadata_test, permutations = n_permutations)
-save(fit_adonis_disease, file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
-fit_adonis_bodySite <- 
-  vegan::adonis(dist_genera_adj~sample_type + body_site,
-                data = metadata_test, permutations = n_permutations)
-save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
-fit_adonis_subject <- 
-  vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
-                data = metadata_test, permutations = n_permutations)
-save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+# l_fit_adonisMarg <- paste0(c("race", 
+#                              "gender", 
+#                              "age.cat", 
+#                              "age_at_diagnosis.cat"), "_fill") %>% 
+#   purrr::map(function(variable) {
+#     as.formula(paste0("dist_genera_adj~(", variable,
+#                       "==\"NA\")", "+", variable)) %>% 
+#       vegan::adonis(data = metadata_test, permutations = n_permutations)
+#   })
+# save(l_fit_adonisMarg, file = paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
+load(paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
+# l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat", 
+#                              "antibiotics",
+#                              "immunosuppressants",
+#                              "steroids",
+#                              "mesalamine_5ASA"), "_fill") %>% 
+#   purrr::map(function(variable) {
+#     as.formula(paste0("dist_genera_adj~disease+(", variable,
+#                       "==\"NA\")", "+", variable)) %>% 
+#       vegan::adonis(data = metadata_test, permutations = n_permutations)
+#   })
+# save(l_fit_adonisCond, file = paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
+load(paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
+# fit_adonis_disease <- 
+#   vegan::adonis(dist_genera_adj~disease,
+#                 data = metadata_test, permutations = n_permutations)
+# save(fit_adonis_disease, file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
+load(paste0(dir_outputChunk, "fit_adonis_disease.RData"))
+# fit_adonis_bodySite <- 
+#   vegan::adonis(dist_genera_adj~sample_type + body_site,
+#                 data = metadata_test, permutations = n_permutations)
+# save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
+load(paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
+# fit_adonis_subject <- 
+#   vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
+#                 data = metadata_test, permutations = n_permutations)
+# save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+load(paste0(dir_outputChunk, "fit_adonis_subject.RData"))
 tb_marg <- c("race", 
              "gender", 
              "age.cat", 
              "age_at_diagnosis.cat") %>% 
   purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
     tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
+                   pval = i_fit_adonis$aov.tab$`Pr(>F)`[1:2],
                    variable = variable,
                    is_NA = c("is_NA", "non_missing"))
   })
@@ -104,31 +110,46 @@ tb_cond <-c("B.cat", "L.cat", "E.cat",
             "mesalamine_5ASA") %>% 
   purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
     tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
+                   pval = i_fit_adonis$aov.tab$`Pr(>F)`[2:3],
                    variable = variable,
                    is_NA = c("is_NA", "non_missing"))
   })
 tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1], 
+                             pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
                              variable = "disease", is_NA = "non_missing")
 tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2], 
+                              pval = fit_adonis_bodySite$aov.tab$`Pr(>F)`[1:2], 
                               variable = c("stool/biopsy", "biopsy_site"), 
                               is_NA = "non_missing")
 tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
+                             pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1:2],
                              variable = c("study", "subject"),
                              is_NA = "non_missing")
 tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>% 
   dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
-                is_NA = factor(is_NA, levels = c("non_missing", "is_NA")))
+                is_NA = factor(is_NA, levels = c("non_missing", "is_NA"))) %>% 
+  dplyr::mutate(p_levels = 
+                  dplyr::case_when(
+                    pval <= 0.001 ~ "***",
+                    pval <= 0.01 ~ "**",
+                    pval <= 0.05 ~ "*",
+                    TRUE ~ ""
+                  ))
 tb_plot %>% 
   ggplot(aes(x = is_NA, y = variable, fill = R2)) +
   geom_tile() +
   scale_fill_gradient(low = "white", high = "black", trans = "log10") +
-  geom_text(aes(label = round(R2*100, digits = 2) %>% paste0("%")), color = "navy")
-ggsave(filename = paste0(dir_output, "PERMANOVA.pdf"), width = 5, height = 6)
+  geom_text(aes(label = paste0(round(R2*100, digits = 2), "%\n",
+                               p_levels)), 
+            color = "red")
+ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), width = 5, height = 8)
 ```
 # Maaslin2
 ```{r Maaslin2}
 dir_outputChunk <- paste0(dir_output, "Maaslin2/")
 dir.create(dir_outputChunk)
+source("assets/ma_tests.R")
+
 metadata_test <- metadata %>% 
   dplyr::mutate(race_fill = fill_na(race),
                 gender_fill = fill_na(gender),
@@ -152,70 +173,84 @@ metadata_test <- metadata %>%
                            studies_longitudinal,
                          subject_accession,
                          NA_character_))
-mat_otu_adj <- phylo_genera_adj %>% 
-  transform_sample_counts(tss) %>%  
-  otu_table2
 
-# list of tests to carry out
-source("assets/ma_tests.R")
-l_results <- list()
-for(test in names(l_tests)) {
-  print(test)
-  test_param <- l_tests[[test]]
-  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-  #                                     data = metadata_test %>%
-  #                                       dplyr::filter(!!test_param$exprs_filter),
-  #                                     test_variable = test_param$test_variable,
-  #                                     contrasts = test_param$contrasts,
-  #                                     batch_variable = test_param$batch_variable,
-  #                                     covariates = test_param$covariates,
-  #                                     covariates.random = test_param$covariates.random,
-  #                                     moderator_variables =
-  #                                       test_param$moderator_variables,
-  #                                     n_features = 50,
-  #                                     normalization = "TSS",
-  #                                     transform = "AST",
-  #                                     analysis_method = "LM",
-  #                                     rma_method = "REML",
-  #                                     directory = paste0(dir_outputChunk, test, "/"),
-  #                                     forest.plots = TRUE,
-  #                                     verbose = FALSE)
-  # save(result, file = paste0(dir_outputChunk, test, "/result.RData"))
-  load(paste0(dir_outputChunk, test, "/result.RData"))
-  l_results[[test]] <- result
+for(feature_level in c("genera", "species", "otus")) {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
+  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    transform_sample_counts(tss) %>%  
+    otu_table2
+  
+  l_results <- list()
+  for(test in names(l_tests)) {
+    print(test)
+    test_param <- l_tests[[test]]
+    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+                               data = metadata_test %>%
+                                 dplyr::filter(!!test_param$exprs_filter),
+                               test_variable = test_param$test_variable,
+                               contrasts = test_param$contrasts,
+                               batch_variable = test_param$batch_variable,
+                               covariates = test_param$covariates,
+                               covariates.random = 
+                                 test_param$covariates.random,
+                               moderator_variables =
+                                 test_param$moderator_variables,
+                               n_features = 50,
+                               normalization = "TSS",
+                               transform = "AST",
+                               analysis_method = "LM",
+                               rma_method = "REML",
+                               directory = paste0(dir_outputChunk, 
+                                                  feature_level, "/",
+                                                  test, "/"),
+                               forest.plots = TRUE,
+                               verbose = FALSE)
+    save(result, file = paste0(dir_outputChunk, feature_level, "/",
+                               test, "/result.RData"))
+    # load(paste0(dir_outputChunk, feature_level, "/",
+    #             test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  result_all <- l_results %>% 
+    purrr::imap_dfr(function(result, test) {
+      result$tb_summarise %>% 
+        tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>% 
+        dplyr::group_by_at(vars(-weight, -study)) %>% 
+        dplyr::arrange(desc(weight)) %>% 
+        dplyr::summarise(max_weight = weight[1],
+                         study_max_weight = study[1]) %>% 
+        dplyr::ungroup() %>% 
+        dplyr::mutate(study_max_weight = study_max_weight %>% 
+                        stringr::str_replace_all("weight\\_", ""),
+                      test = test,
+                      q.fdr_meta = ifelse(k > 2,
+                                          pval,
+                                          NA_real_) %>% 
+                        p.adjust(method = "fdr"))
+    })
+  readr::write_tsv(result_all, paste0(dir_outputChunk, 
+                                      feature_level,
+                                      "/all_results.tsv"))
+  
+  # Visualization
+  # disease status
+  i_tests <- c("CD_vs_control", "UC_vs_control", "CD_vs_UC")
+  plot_metaAnalysis(l_results, i_tests, "disease_status", 
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # disease subtype
+  i_tests <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
+               "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
+  plot_metaAnalysis(l_results, i_tests, "disease_subtype", 
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # treatment
+  i_tests <- c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA")
+  plot_metaAnalysis(l_results, i_tests, "treatment", 
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # covariates
+  i_tests <- c("age", "gender")
+  plot_metaAnalysis(l_results, i_tests, "covariates", 
+                    paste0(dir_outputChunk, feature_level, "/"))
 }
-result_all <- l_results %>% 
-  purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>% 
-      tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>% 
-      dplyr::group_by_at(vars(-weight, -study)) %>% 
-      dplyr::arrange(desc(weight)) %>% 
-      dplyr::summarise(max_weight = weight[1],
-                       study_max_weight = study[1]) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::mutate(study_max_weight = study_max_weight %>% 
-                      stringr::str_replace_all("weight\\_", ""),
-                    test = test,
-                    q.fdr_meta = ifelse(k > 2,
-                                        pval,
-                                        NA_real_) %>% 
-                      p.adjust(method = "fdr"))
-  })
-readr::write_tsv(result_all, paste0(dir_outputChunk, "all_results.tsv"))
-
-
-# disease status
-i_tests <- c("CD_vs_control", "UC_vs_control", "CD_vs_UC")
-plot_metaAnalysis(l_results, i_tests, "disease_status", dir_outputChunk)
-# disease subtype
-i_tests <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
-             "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
-plot_metaAnalysis(l_results, i_tests, "disease_subtype", dir_outputChunk)
-# treatment
-i_tests <- c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA")
-plot_metaAnalysis(l_results, i_tests, "treatment", dir_outputChunk)
-# covariates
-i_tests <- c("age", "gender")
-plot_metaAnalysis(l_results, i_tests, "covariates", dir_outputChunk)
 ```
 
