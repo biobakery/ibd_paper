@@ -77,7 +77,8 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
   ggsave(file = paste0(directory, name, ".pdf"),
          p, 
          width = 8 + length(tests),
-         height = length(unique(tb_toplot$feature)) / 3)
+         height = length(unique(tb_toplot$feature)) / 3,
+         limitsize = FALSE)
   tb_toplot_forest <- l_results[tests] %>% 
     purrr::imap_dfr(function(result, test) {
       result$result$ind.results %>% 
