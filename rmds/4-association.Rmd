@@ -257,33 +257,13 @@ for(feature_level in c("genera", "species", "otus")) {
 ```{r Maaslin2 OTU vs. species}
 dir_outputChunk <- paste0(dir_output, "Maaslin2/species_vs_otus/")
 dir.create(dir_outputChunk)
-l_results_species <- l_results_otus <- list()
+l_results_genera <- l_results_species <- l_results_otus <- list()
 for(test in names(l_tests)) {
   print(test)
   test_param <- l_tests[[test]]
-  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-  #                            data = metadata_test %>%
-  #                              dplyr::filter(!!test_param$exprs_filter),
-  #                            test_variable = test_param$test_variable,
-  #                            contrasts = test_param$contrasts,
-  #                            batch_variable = test_param$batch_variable,
-  #                            covariates = test_param$covariates,
-  #                            covariates.random = 
-  #                              test_param$covariates.random,
-  #                            moderator_variables =
-  #                              test_param$moderator_variables,
-  #                            n_features = 50,
-  #                            normalization = "TSS",
-  #                            transform = "AST",
-  #                            analysis_method = "LM",
-  #                            rma_method = "REML",
-  #                            directory = paste0(dir_outputChunk, 
-  #                                               feature_level, "/",
-  #                                               test, "/"),
-  #                            forest.plots = TRUE,
-  #                            verbose = FALSE)
-  # save(result, file = paste0(dir_outputChunk, feature_level, "/",
-  #                            test, "/result.RData"))
+  load(paste0("results/4-association/Maaslin2/genera/",
+              test, "/result.RData"))
+  l_results_genera[[test]] <- result
   load(paste0("results/4-association/Maaslin2/species/",
               test, "/result.RData"))
   l_results_species[[test]] <- result
@@ -291,6 +271,7 @@ for(test in names(l_tests)) {
               test, "/result.RData"))
   l_results_otus[[test]] <- result
 }
+
 tb_species <- l_results_species %>% 
   purrr::imap_dfr(function(result, test) {
     result$tb_summarise %>% 
@@ -446,4 +427,8 @@ ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
          dplyr::pull(feature_species) %>% 
          unique %>% length %>% divide_by(4),
        width = 15)
+tax_table2(phylo_genera_adj) %>% 
+  as.data.frame() %>% 
+  dplyr::filter(Rank5 %in% "f__Enterococcaceae") %>% 
+  View
 ```
