@@ -253,4 +253,197 @@ for(feature_level in c("genera", "species", "otus")) {
                     paste0(dir_outputChunk, feature_level, "/"))
 }
 ```
+# Compare OTU-level and species-level Maaslin2 results
+```{r Maaslin2 OTU vs. species}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/species_vs_otus/")
+dir.create(dir_outputChunk)
+l_results_species <- l_results_otus <- list()
+for(test in names(l_tests)) {
+  print(test)
+  test_param <- l_tests[[test]]
+  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+  #                            data = metadata_test %>%
+  #                              dplyr::filter(!!test_param$exprs_filter),
+  #                            test_variable = test_param$test_variable,
+  #                            contrasts = test_param$contrasts,
+  #                            batch_variable = test_param$batch_variable,
+  #                            covariates = test_param$covariates,
+  #                            covariates.random = 
+  #                              test_param$covariates.random,
+  #                            moderator_variables =
+  #                              test_param$moderator_variables,
+  #                            n_features = 50,
+  #                            normalization = "TSS",
+  #                            transform = "AST",
+  #                            analysis_method = "LM",
+  #                            rma_method = "REML",
+  #                            directory = paste0(dir_outputChunk, 
+  #                                               feature_level, "/",
+  #                                               test, "/"),
+  #                            forest.plots = TRUE,
+  #                            verbose = FALSE)
+  # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+  #                            test, "/result.RData"))
+  load(paste0("results/4-association/Maaslin2/species/",
+              test, "/result.RData"))
+  l_results_species[[test]] <- result
+  load(paste0("results/4-association/Maaslin2/otus/",
+              test, "/result.RData"))
+  l_results_otus[[test]] <- result
+}
+tb_species <- l_results_species %>% 
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>% 
+      dplyr::filter(k >= 2) %>% 
+      dplyr::transmute(feature_species = feature, 
+                       beta_species = beta, 
+                       se_species = se, 
+                       pval_species = pval) %>% 
+      dplyr::mutate(q.fdr_species = p.adjust(pval_species, method = "fdr")) %>% 
+      dplyr::mutate(test = test)
+  })
+tb_otus <- l_results_otus %>% 
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>% 
+      dplyr::filter(k >= 2) %>% 
+      dplyr::select(feature, 
+                    beta, 
+                    se, 
+                    pval) %>% 
+      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+      dplyr::mutate(test = test)
+  }) %>% 
+  dplyr::mutate(feature_species = feature %>% 
+                  stringr::str_replace_all("\\|\\d+$", "") %>% 
+                  paste0("|NA"))
+tb_plot <- tb_otus %>% 
+  left_join(tb_species, by = c("test", "feature_species")) %>% 
+  dplyr::group_by(feature_species, test) %>% 
+  dplyr::mutate(n_otus = n(),
+                q.fdr_min = min(q.fdr)) %>% 
+  dplyr::ungroup()
+p <- tb_plot %>% 
+  dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+                n_otus > 1,
+                test %in% ("CD_vs_control")) %>% 
+  ggplot(aes(x = feature_species, y = beta)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(aes(color = q.fdr < 0.05), position = position_jitter(width = 0.25)) +
+  geom_point(aes(x = feature_species, y = beta_species, color = q.fdr_species < 0.05), 
+             shape = 17, size = 3) +
+  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+  coord_flip()
+ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
+       p,
+       height = tb_plot %>% 
+         dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+                n_otus > 1,
+                test %in% ("CD_vs_control")) %>% 
+         dplyr::pull(feature_species) %>% 
+         unique %>% length %>% divide_by(4),
+       width = 15)
+```
 
+# Effect modification of sample type / disease status?
+```{r Maaslin2 OTU vs. species}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
+dir.create(dir_outputChunk)
+l_results_genera <- l_results_species <- l_results_otus <- list()
+for(test in names(l_tests)) {
+  print(test)
+  test_param <- l_tests[[test]]
+  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+  #                            data = metadata_test %>%
+  #                              dplyr::filter(!!test_param$exprs_filter),
+  #                            test_variable = test_param$test_variable,
+  #                            contrasts = test_param$contrasts,
+  #                            batch_variable = test_param$batch_variable,
+  #                            covariates = test_param$covariates,
+  #                            covariates.random = 
+  #                              test_param$covariates.random,
+  #                            moderator_variables =
+  #                              test_param$moderator_variables,
+  #                            n_features = 50,
+  #                            normalization = "TSS",
+  #                            transform = "AST",
+  #                            analysis_method = "LM",
+  #                            rma_method = "REML",
+  #                            directory = paste0(dir_outputChunk, 
+  #                                               feature_level, "/",
+  #                                               test, "/"),
+  #                            forest.plots = TRUE,
+  #                            verbose = FALSE)
+  # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+  #                            test, "/result.RData"))
+  load(paste0("results/4-association/Maaslin2/genera/",
+              test, "/result.RData"))
+  l_results_genera[[test]] <- result
+  load(paste0("results/4-association/Maaslin2/species/",
+              test, "/result.RData"))
+  l_results_species[[test]] <- result
+  load(paste0("results/4-association/Maaslin2/otus/",
+              test, "/result.RData"))
+  l_results_otus[[test]] <- result
+}
+tb_genera <- l_results_genera[c("antibiotics",
+                                "steroids",
+                                "mesalamine_5ASA")] %>% 
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>% 
+      dplyr::filter(k >= 2) %>% 
+      dplyr::select(feature, 
+                    beta, 
+                    se, 
+                    pval,
+                    `p.moderator_sample_type+disease`) %>% 
+      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+      dplyr::mutate(test = test)
+  })
+tb_genera %>% 
+  dplyr::filter(q.fdr < 0.05,
+                `p.moderator_sample_type+disease` < 0.05) %>% 
+  View
+tb_otus <- l_results_otus[c("antibiotics",
+                                "steroids",
+                                "mesalamine_5ASA")] %>% 
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>% 
+      dplyr::filter(k >= 2) %>% 
+      dplyr::select(feature, 
+                    beta, 
+                    se, 
+                    pval,
+                    `p.moderator_sample_type+disease`) %>% 
+      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+      dplyr::mutate(test = test)
+  })
+tb_otus %>% 
+  dplyr::filter(q.fdr < 0.05 & `p.moderator_sample_type+disease` < 0.05) %>% 
+  View
+tb_plot <- tb_otus %>% 
+  left_join(tb_species, by = c("test", "feature_species")) %>% 
+  dplyr::group_by(feature_species, test) %>% 
+  dplyr::mutate(n_otus = n(),
+                q.fdr_min = min(q.fdr)) %>% 
+  dplyr::ungroup()
+p <- tb_plot %>% 
+  dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+                n_otus > 1,
+                test %in% ("CD_vs_control")) %>% 
+  ggplot(aes(x = feature_species, y = beta)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(aes(color = q.fdr < 0.05), position = position_jitter(width = 0.25)) +
+  geom_point(aes(x = feature_species, y = beta_species, color = q.fdr_species < 0.05), 
+             shape = 17, size = 3) +
+  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+  coord_flip()
+ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
+       p,
+       height = tb_plot %>% 
+         dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+                n_otus > 1,
+                test %in% ("CD_vs_control")) %>% 
+         dplyr::pull(feature_species) %>% 
+         unique %>% length %>% divide_by(4),
+       width = 15)
+```
