@@ -1,0 +1,405 @@
+---
+title: "3.1-adjust_batch_check"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+# Overview
+- Calculate distances of samples (before and after adjustment)
+- Adjust batch within studies (if available).
+- Adjust batch across studies.
+- Overview of studies.
+* Ordination
+* Heatmap of top abundant taxa
+
+```{r setup, echo = FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/3-adjust_batch/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+# Perform batch-correction on studies where available
+```{r batch adjustment}
+print(studies)
+n_permutations <- 2 # set # permuations for PERMANOVA
+dir_outputChunk <- paste0(dir_output, "batches/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+for(feature_level in c("genera", "species", "otus")) {
+  load(paste0("data/phyloseq/", feature_level, ".Rdata"))
+  phylo <- get(paste0("phylo_", feature_level))
+  mat_otu <- otu_table2(phylo)
+  metadata <- sample_data2(phylo)
+  # distance <- phylo %>%
+  #   transform_sample_counts(tss) %>%
+  #   phyloseq::distance(method = "bray")
+  # assign(paste0("dist_", feature_level), distance)
+  # save(list = paste0("dist_", feature_level), 
+  #      file = paste0("data/distance/", "dist_", feature_level, ".RData"))
+  load(paste0("data/distance/", "dist_", feature_level, ".RData"))
+  distance <- get(paste0("dist_", feature_level))
+  
+  dir.create(paste0(dir_outputChunk,  feature_level), 
+             recursive = TRUE, showWarnings = TRUE)
+  studies_batch <- metadata %>% 
+    dplyr::group_by(dataset_name) %>% 
+    dplyr::summarise(has_batch = any(!is.na(batch))) %>% 
+    dplyr::filter(has_batch) %>% 
+    extract2("dataset_name")
+  mat_otu_adj <- mat_otu
+  l_fit_adonis <- list()
+  for(study in studies_batch) {
+    samples_tmp <- rownames(metadata)[metadata$dataset_name == study &
+                                        !is.na(metadata$batch)]
+    cat("Study", study, "has", length(samples_tmp), "samples with",
+        dplyr::n_distinct(metadata[samples_tmp, ]$batch), "batches.\n")
+    mat_otu_tmp <- MMUPHin::adjust.batch(feature.count = mat_otu[, samples_tmp],
+                                         batch = "batch",
+                                         data = metadata[samples_tmp, ],
+                                         verbose = FALSE,
+                                         diagnostics = TRUE)
+    ggsave(filename = paste0(dir_outputChunk, feature_level, "/", study, ".pdf"),
+           width = 8, height = 4)
+    
+    dist_before <- distance %>% subset_distance(samples_tmp)
+    dist_after <- mat_otu_tmp %>% phyloseq::otu_table(taxa_are_rows = TRUE) %>% 
+      transform_sample_counts(tss) %>% 
+      phyloseq::distance(method = "bray")
+    # PERMANOVA
+    l_fit_adonis[[study]] <- 
+      list(before = dist_before, after = dist_after) %>% 
+      purrr::map(~vegan::adonis(. ~ batch, data = metadata[samples_tmp, ], 
+                                permutations = n_permutations))
+    # Ordination
+    tb_ordinate <- list(before = dist_before,
+                        after = dist_after) %>% 
+      purrr::imap_dfr(function(dist, adjust) {
+        as.data.frame(
+          ape::pcoa(D = dist)$vectors
+        ) %>% 
+          tibble::rownames_to_column() %>% 
+          dplyr::mutate(adjust = adjust)
+      }) %>% 
+      dplyr::left_join(metadata[samples_tmp, ] %>% tibble::rownames_to_column(),
+                       by = "rowname")
+    p <- tb_ordinate %>% 
+      dplyr::mutate(adjust = factor(adjust, levels = c("before", "after"))) %>% 
+      ggplot(aes(x = Axis.1, y = Axis.2, color = batch)) +
+      geom_point() + 
+      facet_grid(.~adjust) + coord_fixed() +
+      ggtitle(paste0("Study=", study, "\n",
+                     "Before R2=", 
+                     round(l_fit_adonis[[study]]$before$aov.tab["batch", 
+                                                                "R2"] * 100, 
+                           digits = 4), "\n",
+                     "After R2=", 
+                     round(l_fit_adonis[[study]]$after$aov.tab["batch", 
+                                                               "R2"] * 100, 
+                           digits = 4), "\n"))
+    ggsave(filename = paste0(dir_outputChunk, feature_level, "/", 
+                             study, "_ordinate.pdf"),
+           p, width = 14, height = 5)
+    
+    mat_otu_adj[, samples_tmp] <- mat_otu_tmp
+  }
+  phylo_adj <- phylo
+  otu_table(phylo_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
+  assign(paste0("phylo_", feature_level, "_adj"), value = phylo_adj)
+  
+  # Overall before vs. after for batch adjustment
+  tb_adjBatch <- l_fit_adonis %>% 
+    purrr::imap_dfr(function(i_list, study) {
+      i_list %>% purrr::imap_dfr(function(i_fit_adonis, adjust) {
+        tibble::tibble(n_samples = i_fit_adonis$aov.tab["Total", "Df"] + 1,
+                       n_batch = i_fit_adonis$aov.tab["batch", "Df"] + 1,
+                       R2 = i_fit_adonis$aov.tab["batch", "R2"],
+                       Pval = i_fit_adonis$aov.tab["batch", "Pr(>F)"],
+                       adjust = adjust)
+      }) %>% 
+        dplyr::mutate(study = study)
+    }) %>% 
+    dplyr::mutate(adjust = factor(adjust, levels = c("before", "after")),
+                  study = factor(study, levels = studies)) %>% 
+    dplyr::arrange(study, adjust)
+  tb_adjBatch %>% readr::write_tsv(paste0(dir_outputChunk, feature_level, 
+                                          "/R2_summary.tsv")) %>% 
+    print %>% 
+    ggplot(aes(x = study, y = R2, fill = adjust)) +
+    geom_bar(stat = "identity", position = position_dodge())
+  ggsave(filename = paste0(dir_outputChunk, feature_level, "/R2_summary.pdf"),
+         width = 6, height = 4)
+}
+```
+
+# Perform study adjustment
+```{r study adjustment}
+dir_outputChunk <- paste0(dir_output, "studies/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+for(feature_level in c("genera", "species", "otus")) {
+  dir.create(paste0(dir_outputChunk, feature_level), 
+             recursive = TRUE, showWarnings = TRUE)
+  phylo_adj <- get(paste0("phylo_", feature_level, "_adj"))
+  mat_otu_adj <- otu_table2(phylo_adj)
+  mat_otu_adj <- MMUPHin::adjust.batch(feature.count = mat_otu_adj,
+                                       batch = "dataset_name",
+                                       covariates = c("disease", "body_site"),
+                                       data = metadata)
+  ggsave(filename = paste0(dir_outputChunk, feature_level, "/", "studies.pdf"), 
+         width = 8,
+         height = 4)
+  otu_table(phylo_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
+  assign(paste0("phylo_", feature_level, "_adj"), phylo_adj)
+  save(list = paste0("phylo_", feature_level, "_adj"), 
+       file = paste0("data/phyloseq/", feature_level, "_adj.RData"))
+  # distance_adj <- phylo_adj %>%
+  #   transform_sample_counts(tss) %>%
+  #   phyloseq::distance(method = "bray")
+  # assign(paste0("dist_", feature_level, "_adj"), distance_adj)
+  # save(list = paste0("dist_", feature_level, "_adj"), 
+  #      file = paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  load(paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  distance_adj <- get(paste0("dist_", feature_level, "_adj"))
+  # ordinate_before <- ape::pcoa(D = l_dist$before)
+  # ordinate_after <- ape::pcoa(D = l_dist$after)
+  # assign(paste0("ordinate_before_", feature_level), ordinate_before)
+  # assign(paste0("ordinate_after_", feature_level), ordinate_after)
+  # save(list = paste0("ordinate_before_", feature_level), 
+  #      file = paste0("data/distance/ordinate_before_", feature_level, ".RData"))
+  # save(list = paste0("ordinate_after_", feature_level), 
+  #      file = paste0("data/distance/ordinate_after_", feature_level, ".RData"))
+  load(paste0("data/distance/ordinate_before_", feature_level, ".RData"))
+  load(paste0("data/distance/ordinate_after_", feature_level, ".RData"))
+}
+```
+# Ordination figures
+```{r ordination}
+# A whole bunch of ordination
+dir_outputChunk <- paste0(dir_output, "ordination/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+for(feature_level in c("genera", "species", "otus")) {
+  dir.create(paste0(dir_outputChunk, feature_level), 
+             recursive = TRUE, showWarnings = TRUE)
+  phylo <- get(paste0("phylo_", feature_level))
+  phylo_adj <- get(paste0("phylo_", feature_level, "_adj"))
+  ordinate_before <- get(paste0("ordinate_before_", feature_level))
+  ordinate_after <- get(paste0("ordinate_after_", feature_level))
+  l_dist <- list(before = get(paste0("dist_", feature_level)), 
+                 after = get(paste0("dist_", feature_level, "_adj")))
+  l_fit_adonis <- l_dist %>% 
+    purrr::map(~vegan::adonis(. ~ dataset_name, data = metadata, 
+                              permutations = n_permutations))  
+  l_fit_adonisCond <- l_dist %>% 
+    purrr::map(~vegan::adonis(. ~ disease + body_site + dataset_name, 
+                              data = metadata, 
+                              permutations = n_permutations))  
+  list(1:2, 3:4) %>% 
+    purrr::walk(function(axes) {
+      # study
+      colors_study <- c("RISK" = "black",
+                        "PROTECT" = "grey",
+                        gg_color_hue(values = setdiff(studies, 
+                                                      c("RISK", "PROTECT"))))
+      p1 <- phyloseq::plot_ordination(phylo, 
+                                      ordinate_before, 
+                                      axes = axes,
+                                      color = "dataset_name") +
+        scale_color_manual(values = colors_study) +
+        ggtitle(paste0("Before R2=", 
+                       round(l_fit_adonis$before$aov.tab["dataset_name", 
+                                                         "R2"] * 100, 
+                             digits = 2),
+                       "\n",
+                       "conditional R2=",
+                       round(l_fit_adonisCond$before$aov.tab["dataset_name", 
+                                                             "R2"] * 100, 
+                             digits = 2)))
+      p2 <- phyloseq::plot_ordination(phylo_adj, 
+                                      ordinate_after, 
+                                      axes = axes,
+                                      color = "dataset_name") +
+        scale_color_manual(values = colors_study) +
+        ggtitle(paste0("After R2=", 
+                       round(l_fit_adonis$after$aov.tab["dataset_name", 
+                                                        "R2"] * 100, 
+                             digits = 2),
+                       "\n",
+                       "conditional R2=",
+                       round(l_fit_adonisCond$after$aov.tab["dataset_name", 
+                                                            "R2"] * 100, 
+                             digits = 2)))
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_outputChunk, feature_level, "/study", 
+                                 paste(axes, collapse = ""),".pdf"),
+               width = 15, height = 5)
+      
+      tb_plot <- metadata %>%
+        tibble::rownames_to_column() %>% 
+        dplyr::left_join(ordinate_after$vectors[, axes] %>% 
+                           as.data.frame %>% 
+                           set_colnames(c("x.Axis", "y.Axis")) %>% 
+                           tibble::rownames_to_column(), 
+                         by = "rowname")
+      # disease
+      colors_disease <- c(gg_color_hue(c("CD", "UC")), "control" = "black")
+      p1 <- tb_plot %>% dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + 
+        geom_point() +
+        scale_color_manual(values = colors_disease) + 
+        ggtitle("Disease") + coord_fixed()
+      # p2 <- tb_plot %>% dplyr::filter(disease != "control") %>% 
+      #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+      #   scale_color_manual(values = colors_disease, guide = FALSE)
+      # p3 <- tb_plot %>% dplyr::filter(disease != "UC") %>% 
+      #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+      #   scale_color_manual(values = colors_disease, guide = FALSE)
+      # p4 <- tb_plot %>% dplyr::filter(disease != "CD") %>% 
+      #   ggplot(aes(x = x.Axis, y = y.Axis, color = disease)) + geom_point() +
+      #   scale_color_manual(values = colors_disease, guide = FALSE)
+      # cowplot::plot_grid(p1, cowplot::plot_grid(p2, p3, p4, ncol = 1), 
+      #                    nrow = 1, rel_widths = c(3.5, 1)) %>% 
+      #   ggsave(filename = paste0(dir_output, "ordination/disease", 
+      #                            paste(axes, collapse = ""),".pdf"),
+      #          width = 20, height = 12)
+      ggsave(filename = paste0(dir_outputChunk, feature_level, "/disease", 
+                               paste(axes, collapse = ""),".pdf"), 
+             p1,
+             width = 7, height = 6)
+      p1 <- tb_plot %>% 
+        dplyr::filter(!is.na(L.cat), L.cat %in% c("L1", "L2", "L3")) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = L.cat)) + geom_point() + 
+        coord_fixed() + ggtitle("CD location category")
+      p2 <- tb_plot %>% 
+        dplyr::filter(!is.na(B.cat)) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = B.cat)) + geom_point() + 
+        coord_fixed() + ggtitle("CD behaviour category")
+      p3 <- tb_plot %>% 
+        dplyr::filter(!is.na(E.cat)) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = E.cat)) + geom_point() + 
+        coord_fixed() + ggtitle("UC extent cateogry")
+      cowplot::plot_grid(p1, p2, p3, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_outputChunk, feature_level, 
+                                 "/disease_subtype", 
+                                 paste(axes, collapse = ""),".pdf"),
+               ., width = 17, height = 5)
+      
+      
+      # body site
+      p1 <- tb_plot %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = sample_type)) + geom_point() + 
+        coord_fixed() + ggtitle("biopsy vs. stool")
+      p2 <- tb_plot %>% 
+        dplyr::filter(sample_type %in% "biopsy") %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = body_site)) + geom_point() + 
+        coord_fixed() + ggtitle("biopsy site")
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_outputChunk, feature_level, "/bodysite", 
+                                 paste(axes, collapse = ""),".pdf"),
+               ., width = 12, height = 5)
+      
+      # age
+      p1 <- tb_plot %>% 
+        dplyr::filter(!is.na(age)) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = age <= 18)) + geom_point() + 
+        coord_fixed() + ggtitle("age (sample collection)")
+      p2 <- tb_plot %>% 
+        dplyr::mutate(A.cat = ifelse(!is.na(age_at_diagnosis.cat),
+                                     age_at_diagnosis.cat,
+                                     dplyr::case_when(
+                                       age_at_diagnosis < 16 ~ "A1",
+                                       age_at_diagnosis < 40 ~ "A2",
+                                       !is.na(age_at_diagnosis) ~ "A3",
+                                       TRUE ~ NA_character_
+                                     ))) %>% 
+        dplyr::filter(!is.na(A.cat)) %>% 
+        ggplot(aes(x = x.Axis, y = y.Axis, color = A.cat)) + geom_point() + 
+        coord_fixed() + ggtitle("age (diagnosis)")
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_outputChunk, feature_level, "/age", 
+                                 paste(axes, collapse = ""),".pdf"),
+               ., width = 12, height = 5)
+      
+      # treatment
+      colors_treatment <- gg_color_hue(c("y", "n"))
+      l_p <- c("CD", "UC") %>% 
+        purrr::map(function(i_disease) {
+          c("antibiotics", "immunosuppressants", 
+            "steroids", "mesalamine_5ASA") %>% 
+            purrr::map(function(i_treatment) {
+              tb_plot %>% 
+                dplyr::filter(disease == i_disease, 
+                              !is.na(!!rlang::sym(i_treatment))) %>% 
+                ggplot(aes(x = x.Axis, y = y.Axis, 
+                           color = !!rlang::sym(i_treatment))) +
+                geom_point() + coord_fixed() + 
+                ggtitle(paste0(i_disease, ", ", i_treatment)) +
+                scale_color_manual(values = colors_treatment)
+            })
+        }) %>% purrr::reduce(c)
+      cowplot::plot_grid(plotlist = l_p, nrow = 2) %>% 
+        ggsave(filename = paste0(dir_outputChunk, feature_level, 
+                                 "/treatment", 
+                                 paste(axes, collapse = ""),".pdf"),
+               ., width = 20, height = 8)
+    })
+}
+
+```
+
+# Heatmap of top abundant taxa
+```{r heatmap}
+tb_long <- phylo_genera_adj %>% 
+  phyloseq::transform_sample_counts(tss) %>%
+  phyloseq_to_tb
+tax_abd <- tb_long %>% 
+  dplyr::group_by(feature) %>% 
+  dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+  dplyr::arrange(desc(mean_abundance)) %>% 
+  dplyr::slice(1:30) %>% 
+  extract2("feature")
+samples_order <- studies %>%
+  purrr::map(function(study) {
+    samples_tmp <- rownames(metadata)[metadata$dataset_name == study]
+    dist_tmp <- dist_genera_adj %>% subset_distance(samples_tmp)
+    return(samples_tmp[hclust(dist_tmp, method = "average")$order])
+  }) %>% unlist()
+
+ha <- ComplexHeatmap::HeatmapAnnotation(
+  metadata[samples_order, "dataset_name", drop = FALSE],
+  col = list(dataset_name = c("RISK" = "black",
+                              "PROTECT" = "grey", 
+                              gg_color_hue(studies %>% 
+                                             setdiff(c("RISK", "PROTECT"))))
+  )
+)
+mat_otu_plot <- otu_table2(phylo_genera_adj)[tax_abd, samples_order] %>% 
+  apply(2, function(x) x / sum(x))
+tax_table_plot <- tax_table2(phylo_genera_adj)[tax_abd, ] 
+rownames(mat_otu_plot) <- dplyr::case_when(
+  tax_table_plot[, 6] != "g__" ~ tax_table_plot[, 6],
+  tax_table_plot[, 5] != "f__" ~ paste0(tax_table_plot[, 5], "|g__"),
+  TRUE ~ tax_table_plot[, 4]
+)
+mat_otu_plot[mat_otu_plot == 0] <- NA
+heatmap <- ComplexHeatmap::Heatmap(log10(mat_otu_plot),
+                                   col = circlize::colorRamp2(
+                                     c(min(log10(mat_otu_plot), na.rm = TRUE), 
+                                       median(log10(mat_otu_plot), na.rm = TRUE), 0),
+                                     c("blue", "black", "red")),
+                                   na_col = "white",
+                                   cluster_rows = TRUE, show_row_dend = FALSE,
+                                   cluster_columns = FALSE,
+                                   row_names_side = "left",
+                                   show_column_names = FALSE,
+                                   top_annotation = ha)
+pdf(paste0(dir_output, "heatmap.pdf"), width = 35, height = 10)
+ComplexHeatmap::draw(heatmap)
+dev.off()
+```
+
