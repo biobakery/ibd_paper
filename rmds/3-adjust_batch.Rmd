@@ -37,14 +37,14 @@ for(feature_level in c("genera", "species", "otus")) {
   phylo <- get(paste0("phylo_", feature_level))
   mat_otu <- otu_table2(phylo)
   metadata <- sample_data2(phylo)
-  # distance <- phylo %>%
-  #   transform_sample_counts(tss) %>%
-  #   phyloseq::distance(method = "bray")
-  # assign(paste0("dist_", feature_level), distance)
-  # save(list = paste0("dist_", feature_level), 
-  #      file = paste0("data/distance/", "dist_", feature_level, ".RData"))
-  load(paste0("data/distance/", "dist_", feature_level, ".RData"))
-  distance <- get(paste0("dist_", feature_level))
+  distance <- phylo %>%
+    transform_sample_counts(tss) %>%
+    phyloseq::distance(method = "bray")
+  assign(paste0("dist_", feature_level), distance)
+  save(list = paste0("dist_", feature_level),
+       file = paste0("data/distance/", "dist_", feature_level, ".RData"))
+  # load(paste0("data/distance/", "dist_", feature_level, ".RData"))
+  # distance <- get(paste0("dist_", feature_level))
   
   dir.create(paste0(dir_outputChunk,  feature_level), 
              recursive = TRUE, showWarnings = TRUE)
@@ -158,24 +158,24 @@ for(feature_level in c("genera", "species", "otus")) {
   assign(paste0("phylo_", feature_level, "_adj"), phylo_adj)
   save(list = paste0("phylo_", feature_level, "_adj"), 
        file = paste0("data/phyloseq/", feature_level, "_adj.RData"))
-  # distance_adj <- phylo_adj %>%
-  #   transform_sample_counts(tss) %>%
-  #   phyloseq::distance(method = "bray")
-  # assign(paste0("dist_", feature_level, "_adj"), distance_adj)
-  # save(list = paste0("dist_", feature_level, "_adj"), 
-  #      file = paste0("data/distance/dist_", feature_level, "_adj.RData"))
-  load(paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  distance_adj <- phylo_adj %>%
+    transform_sample_counts(tss) %>%
+    phyloseq::distance(method = "bray")
+  assign(paste0("dist_", feature_level, "_adj"), distance_adj)
+  save(list = paste0("dist_", feature_level, "_adj"),
+       file = paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  # load(paste0("data/distance/dist_", feature_level, "_adj.RData"))
   distance_adj <- get(paste0("dist_", feature_level, "_adj"))
-  # ordinate_before <- ape::pcoa(D = l_dist$before)
-  # ordinate_after <- ape::pcoa(D = l_dist$after)
-  # assign(paste0("ordinate_before_", feature_level), ordinate_before)
-  # assign(paste0("ordinate_after_", feature_level), ordinate_after)
-  # save(list = paste0("ordinate_before_", feature_level), 
-  #      file = paste0("data/distance/ordinate_before_", feature_level, ".RData"))
-  # save(list = paste0("ordinate_after_", feature_level), 
-  #      file = paste0("data/distance/ordinate_after_", feature_level, ".RData"))
-  load(paste0("data/distance/ordinate_before_", feature_level, ".RData"))
-  load(paste0("data/distance/ordinate_after_", feature_level, ".RData"))
+  ordinate_before <- ape::pcoa(D = distance)
+  ordinate_after <- ape::pcoa(D = distance_adj)
+  assign(paste0("ordinate_before_", feature_level), ordinate_before)
+  assign(paste0("ordinate_after_", feature_level), ordinate_after)
+  save(list = paste0("ordinate_before_", feature_level),
+       file = paste0("data/distance/ordinate_before_", feature_level, ".RData"))
+  save(list = paste0("ordinate_after_", feature_level),
+       file = paste0("data/distance/ordinate_after_", feature_level, ".RData"))
+  # load(paste0("data/distance/ordinate_before_", feature_level, ".RData"))
+  # load(paste0("data/distance/ordinate_after_", feature_level, ".RData"))
 }
 ```
 # Ordination figures
