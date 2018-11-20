@@ -1579,7 +1579,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">1-create_phyloseq</h1>
 <h4 class="author"><em>Siyuan Ma</em></h4>
-<h4 class="date"><em>13 November, 2018</em></h4>
+<h4 class="date"><em>19 November, 2018</em></h4>
 
 </div>
 
@@ -1600,12 +1600,11 @@ $(document).ready(function () {
 ##  [3] &quot;Herfarth_CCFA_Microbiome_3B_combined&quot;
 ##  [4] &quot;HMP2&quot;                                
 ##  [5] &quot;Jansson_Lamendella_Crohns&quot;           
-##  [6] &quot;jansson_twins_ibd&quot;                   
-##  [7] &quot;LSS-PRISM&quot;                           
-##  [8] &quot;MucosalIBD&quot;                          
-##  [9] &quot;Pouchitis&quot;                           
-## [10] &quot;PROTECT&quot;                             
-## [11] &quot;RISK&quot;</code></pre>
+##  [6] &quot;LSS-PRISM&quot;                           
+##  [7] &quot;MucosalIBD&quot;                          
+##  [8] &quot;Pouchitis&quot;                           
+##  [9] &quot;PROTECT&quot;                             
+## [10] &quot;RISK&quot;</code></pre>
 <pre class="r"><code>l_biom &lt;- list()
 for(study in studies) {
   biom &lt;- paste0(dir_processed, 
@@ -1730,17 +1729,6 @@ for(study in studies) {
 ## tax_table()   Taxonomy Table:    [ 3953 taxa by 8 taxonomic ranks ]</code></pre>
 <pre><code>## Warning in dir.create(paste0(&quot;data/phyloseq/&quot;, study, &quot;/&quot;), recursive =
 ## TRUE, : 'data/phyloseq/Jansson_Lamendella_Crohns' already exists</code></pre>
-<pre><code>## [1] &quot;jansson_twins_ibd&quot;
-## 118 114 114 
-## phyloseq-class experiment-level object
-## otu_table()   OTU Table:         [ 452 taxa and 114 samples ]
-## tax_table()   Taxonomy Table:    [ 452 taxa by 7 taxonomic ranks ]
-## phyloseq-class experiment-level object
-## otu_table()   OTU Table:         [ 452 taxa and 114 samples ]
-## sample_data() Sample Data:       [ 114 samples by 52 sample variables ]
-## tax_table()   Taxonomy Table:    [ 452 taxa by 8 taxonomic ranks ]</code></pre>
-<pre><code>## Warning in dir.create(paste0(&quot;data/phyloseq/&quot;, study, &quot;/&quot;), recursive =
-## TRUE, : 'data/phyloseq/jansson_twins_ibd' already exists</code></pre>
 <pre><code>## [1] &quot;LSS-PRISM&quot;
 ## 88 99 88 
 ## phyloseq-class experiment-level object

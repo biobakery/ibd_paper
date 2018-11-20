@@ -412,7 +412,7 @@ print(phylo_genera)
 phylo_genera <- phylo_genera %>% 
   prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
                                          A = 1e-4),
-                    flist_samples = function(x) sum(x) > 1000)
+                    flist_samples = function(x) sum(x) > 3000)
 print(phylo_genera)
 
 print(phylo_species)
