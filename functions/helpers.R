@@ -20,17 +20,21 @@ cowplot_title <- function(p, title, rel_heights = c(0.1, 1)) {
     cowplot::draw_label(title, fontface = "bold")
   cowplot::plot_grid(title, p, ncol =1 , rel_heights = rel_heights)
 }
-rotate_xaxis <- function(angle) {
-  theme(axis.text.x = element_text(angle = angle, hjust = 1))
+
+rotate_xaxis <- function(angle, hjust = 1, vjust = 1) {
+  theme(axis.text.x = element_text(angle = angle, hjust = hjust, vjust = vjust))
 }
+
 no_label_xaxis <- function() {
   theme(axis.text.x=element_blank(),
         axis.ticks.x=element_blank())
 }
+
 no_label_yaxis <- function() {
   theme(axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
 }
+
 gg_color_hue <- function(values = NULL, n = NULL) {
   if(!is.null(values)) {
     if(anyDuplicated(values)) stop("Values should be unique if provided!")
@@ -44,6 +48,7 @@ gg_color_hue <- function(values = NULL, n = NULL) {
   hues <- seq(15, 375, length = n + 1)
   colors <- hcl(h = hues, l = 65, c = 100)[1:n]
 }
+
 gather_axes <- function(data, n_axis) {
   if(n_axis %% 2 != 0)
     stop("n_axis must be even number!")
@@ -57,6 +62,7 @@ gather_axes <- function(data, n_axis) {
     tb_axes$rowname <- rep(row.names(data), n_axis/2)
   return(tb_axes)
 }
+
 extract_pcoa <- function(fit_pcoa, n_axis) {
   varExplained <- fit_pcoa$values$Relative_eig[1:n_axis]
   tb_axes <- gather_axes(fit_pcoa$vectors, n_axis)

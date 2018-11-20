@@ -99,6 +99,25 @@ tss <- function(x) {
   return(x / sum(x))
 }
 
+makeBetterTaxaNames <- function(family, genus, species) {
+  # family <- !!family
+  # genus <- !!genus
+  # species <- !!species
+  dplyr::case_when(
+    species != "s__" ~ paste(genus %>% 
+                               stringr::str_replace_all(stringr::fixed("g__"), ""),
+                             species %>% 
+                               stringr::str_replace_all(stringr::fixed("s__"), "")),
+    genus != "g__" ~ paste(genus %>% 
+                             stringr::str_replace_all(stringr::fixed("g__"), ""),
+                           "unclassified"),
+    family != "f__" ~ paste(family %>% 
+                              stringr::str_replace_all(stringr::fixed("f__"), ""),
+                            "(f) unclassified"),
+    TRUE ~ "unclassified at family"
+  )
+}
+
 # This funciton is to aggregate a list of (uniformly prepared) phyloseq objects into
 # one single object
 combine_phyloseq <- function(l_phylo) {
