@@ -30,7 +30,7 @@ dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
 dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
 load("data/distance/dist_genera_adj.RData")
-n_permutations <- 999 # set # permuations for PERMANOVA
+n_permutations <- 2 # set # permuations for PERMANOVA
 
 metadata <- sample_data2(phylo_genera_adj)
 # manipulate variables to test, so that avoid missing values
@@ -65,7 +65,7 @@ metadata_test <- metadata %>%
 #       vegan::adonis(data = metadata_test, permutations = n_permutations)
 #   })
 # save(l_fit_adonisMarg, file = paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
-load(paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
+# load(paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
 # l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat", 
 #                              "antibiotics",
 #                              "immunosuppressants",
@@ -77,73 +77,215 @@ load(paste0(dir_outputChunk, "l_fit_adonisMarg.RData"))
 #       vegan::adonis(data = metadata_test, permutations = n_permutations)
 #   })
 # save(l_fit_adonisCond, file = paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
-load(paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
+# load(paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
 # fit_adonis_disease <- 
 #   vegan::adonis(dist_genera_adj~disease,
 #                 data = metadata_test, permutations = n_permutations)
 # save(fit_adonis_disease, file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
-load(paste0(dir_outputChunk, "fit_adonis_disease.RData"))
+# load(paste0(dir_outputChunk, "fit_adonis_disease.RData"))
 # fit_adonis_bodySite <- 
 #   vegan::adonis(dist_genera_adj~sample_type + body_site,
 #                 data = metadata_test, permutations = n_permutations)
 # save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
-load(paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
+# load(paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
 # fit_adonis_subject <- 
 #   vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
 #                 data = metadata_test, permutations = n_permutations)
 # save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
-load(paste0(dir_outputChunk, "fit_adonis_subject.RData"))
-tb_marg <- c("race", 
-             "gender", 
-             "age.cat", 
-             "age_at_diagnosis.cat") %>% 
-  purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
-    tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
-                   pval = i_fit_adonis$aov.tab$`Pr(>F)`[1:2],
-                   variable = variable,
-                   is_NA = c("is_NA", "non_missing"))
-  })
-tb_cond <-c("B.cat", "L.cat", "E.cat", 
-            "antibiotics",
-            "immunosuppressants",
-            "steroids",
-            "mesalamine_5ASA") %>% 
-  purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
-    tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
-                   pval = i_fit_adonis$aov.tab$`Pr(>F)`[2:3],
-                   variable = variable,
-                   is_NA = c("is_NA", "non_missing"))
-  })
-tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1], 
-                             pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
-                             variable = "disease", is_NA = "non_missing")
-tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2], 
-                              pval = fit_adonis_bodySite$aov.tab$`Pr(>F)`[1:2], 
-                              variable = c("stool/biopsy", "biopsy_site"), 
-                              is_NA = "non_missing")
-tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
-                             pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1:2],
-                             variable = c("study", "subject"),
-                             is_NA = "non_missing")
-tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>% 
-  dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
-                is_NA = factor(is_NA, levels = c("non_missing", "is_NA"))) %>% 
-  dplyr::mutate(p_levels = 
-                  dplyr::case_when(
-                    pval <= 0.001 ~ "***",
-                    pval <= 0.01 ~ "**",
-                    pval <= 0.05 ~ "*",
-                    TRUE ~ ""
-                  ))
-tb_plot %>% 
-  ggplot(aes(x = is_NA, y = variable, fill = R2)) +
-  geom_tile() +
-  scale_fill_gradient(low = "white", high = "black", trans = "log10") +
-  geom_text(aes(label = paste0(round(R2*100, digits = 2), "%\n",
-                               p_levels)), 
-            color = "red")
-ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), width = 5, height = 8)
+# load(paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+# tb_marg <- c("race", 
+#              "gender", 
+#              "age.cat", 
+#              "age_at_diagnosis.cat") %>% 
+#   purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
+#     tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
+#                    pval = i_fit_adonis$aov.tab$`Pr(>F)`[1:2],
+#                    variable = variable,
+#                    is_NA = c("is_NA", "non_missing"))
+#   })
+# tb_cond <-c("B.cat", "L.cat", "E.cat", 
+#             "antibiotics",
+#             "immunosuppressants",
+#             "steroids",
+#             "mesalamine_5ASA") %>% 
+#   purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
+#     tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
+#                    pval = i_fit_adonis$aov.tab$`Pr(>F)`[2:3],
+#                    variable = variable,
+#                    is_NA = c("is_NA", "non_missing"))
+#   })
+# tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1], 
+#                              pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
+#                              variable = "disease", is_NA = "non_missing")
+# tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2], 
+#                               pval = fit_adonis_bodySite$aov.tab$`Pr(>F)`[1:2], 
+#                               variable = c("stool/biopsy", "biopsy_site"), 
+#                               is_NA = "non_missing")
+# tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
+#                              pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1:2],
+#                              variable = c("study", "subject"),
+#                              is_NA = "non_missing")
+# tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>% 
+#   dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
+#                 is_NA = factor(is_NA, levels = c("non_missing", "is_NA"))) %>% 
+#   dplyr::mutate(p_levels = 
+#                   dplyr::case_when(
+#                     pval <= 0.001 ~ "***",
+#                     pval <= 0.01 ~ "**",
+#                     pval <= 0.05 ~ "*",
+#                     TRUE ~ ""
+#                   ))
+# tb_plot %>% 
+#   ggplot(aes(x = is_NA, y = variable, fill = R2)) +
+#   geom_tile() +
+#   scale_fill_gradient(low = "white", high = "black", trans = "log10") +
+#   geom_text(aes(label = paste0(round(R2*100, digits = 2), "%\n",
+#                                p_levels)), 
+#             color = "red")
+# ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), width = 5, height = 8)
 ```
+# PERMANOVA per study
+```{r PERMANOVA per study}
+dir_outputChunk <- paste0(dir_output, "PERMANOVA/per_study/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+n_permutations <- 2
+for(study in studies) {
+  print(study)
+  dir.create(paste0(dir_outputChunk, study, "/"), 
+             recursive = TRUE, showWarnings = TRUE)
+  metadata_test_tmp <- subset(metadata_test, dataset_name == study)
+  dist_genera_adj_tmp <- subset_distance(dist_genera_adj,
+                                         metadata_test$dataset_name == study)
+  l_fit_adonisMarg <- paste0(c("race",
+                               "gender",
+                               "age.cat",
+                               "age_at_diagnosis.cat"), "_fill") %>%
+    purrr::map(function(variable) {
+      if(all(metadata_test_tmp[, variable] == "NA") |
+         metadata_test_tmp[, variable] %>% setdiff("NA") %>% 
+         length %>% unique %>% is_less_than(2)) return(NULL)
+      as.formula(paste0("dist_genera_adj_tmp~(", variable,
+                        "==\"NA\")", "+", variable)) %>%
+        vegan::adonis(data = metadata_test_tmp, 
+                      permutations = n_permutations)
+    })
+  save(l_fit_adonisMarg, 
+       file = paste0(dir_outputChunk, study, "/l_fit_adonisMarg.RData"))
+  
+  l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat",
+                               "antibiotics",
+                               "immunosuppressants",
+                               "steroids",
+                               "mesalamine_5ASA"), "_fill") %>%
+    purrr::map(function(variable) {
+      if(all(metadata_test_tmp[, variable] == "NA") |
+         metadata_test_tmp[, variable] %>% setdiff("NA") %>% 
+         length %>% unique %>% is_less_than(2)) return(NULL)
+      if(length(unique(metadata_test_tmp$disease)) < 2) {
+        as.formula(paste0("dist_genera_adj_tmp~(", variable,
+                          "==\"NA\")", "+", variable)) %>%
+          vegan::adonis(data = metadata_test_tmp, 
+                        permutations = n_permutations) %>% 
+          return()
+      } else {
+        as.formula(paste0("dist_genera_adj_tmp~disease+(", variable,
+                          "==\"NA\")", "+", variable)) %>%
+          vegan::adonis(data = metadata_test_tmp, 
+                        permutations = n_permutations) %>% 
+          return()
+      }
+    })
+  save(l_fit_adonisCond, 
+       file = paste0(dir_outputChunk, study, "/l_fit_adonisCond.RData"))
+  
+  if(length(unique(metadata_test_tmp$disease)) < 2) {
+    fit_adonis_disease <- NULL
+  } else {
+    fit_adonis_disease <-
+      vegan::adonis(dist_genera_adj_tmp ~ disease,
+                    data = metadata_test_tmp, permutations = n_permutations)
+  }
+  save(fit_adonis_disease, 
+       file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
+  
+  if(length(unique(metadata_test_tmp$body_site)) < 2) {
+    fit_adonis_bodySite <- NULL
+  } else {
+    if(all(metadata_test_tmp$sample_type == "biopsy")) {
+      fit_adonis_bodySite <-
+        vegan::adonis(dist_genera_adj_tmp ~ body_site,
+                      data = metadata_test_tmp, permutations = n_permutations)
+    } else {
+      fit_adonis_bodySite <-
+        vegan::adonis(dist_genera_adj_tmp ~ sample_type + body_site,
+                      data = metadata_test_tmp, permutations = n_permutations)
+    }
+  }
+  save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
+  
+  fit_adonis_subject <-
+    vegan::adonis(dist_genera_adj_tmp ~ subject_accession,
+                  data = metadata_test_tmp, permutations = n_permutations)
+  save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+}
+
+studies %>% 
+  purrr::map_dfr(function(study) {
+    load(paste0(dir_outputChunk, study, "/l_fit_adonisMarg.RData"))
+    tb_marg <- c("race",
+                 "gender",
+                 "age.cat",
+                 "age_at_diagnosis.cat") %>%
+      purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
+        tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
+                       pval = i_fit_adonis$aov.tab$`Pr(>F)`[1:2],
+                       variable = variable,
+                       is_NA = c("is_NA", "non_missing"))
+      })
+    tb_cond <-c("B.cat", "L.cat", "E.cat",
+                "antibiotics",
+                "immunosuppressants",
+                "steroids",
+                "mesalamine_5ASA") %>%
+      purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
+        tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
+                       pval = i_fit_adonis$aov.tab$`Pr(>F)`[2:3],
+                       variable = variable,
+                       is_NA = c("is_NA", "non_missing"))
+      })
+    tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1],
+                                 pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
+                                 variable = "disease", is_NA = "non_missing")
+    tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2],
+                                  pval = fit_adonis_bodySite$aov.tab$`Pr(>F)`[1:2],
+                                  variable = c("stool/biopsy", "biopsy_site"),
+                                  is_NA = "non_missing")
+    tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
+                                 pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1:2],
+                                 variable = c("study", "subject"),
+                                 is_NA = "non_missing")
+    tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>%
+      dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
+                    is_NA = factor(is_NA, levels = c("non_missing", "is_NA"))) %>%
+      dplyr::mutate(p_levels =
+                      dplyr::case_when(
+                        pval <= 0.001 ~ "***",
+                        pval <= 0.01 ~ "**",
+                        pval <= 0.05 ~ "*",
+                        TRUE ~ ""
+                      ))
+    tb_plot %>%
+      ggplot(aes(x = is_NA, y = variable, fill = R2)) +
+      geom_tile() +
+      scale_fill_gradient(low = "white", high = "black", trans = "log10") +
+      geom_text(aes(label = paste0(round(R2*100, digits = 2), "%\n",
+                                   p_levels)),
+                color = "red")
+    ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), width = 5, height = 8)
+  })
+
+```
+
 # Maaslin2
 ```{r Maaslin2}
 dir_outputChunk <- paste0(dir_output, "Maaslin2/")
@@ -185,31 +327,31 @@ for(feature_level in c("genera", "species", "otus")) {
   for(test in names(l_tests)) {
     print(test)
     test_param <- l_tests[[test]]
-    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-                               data = metadata_test %>%
-                                 dplyr::filter(!!test_param$exprs_filter),
-                               test_variable = test_param$test_variable,
-                               contrasts = test_param$contrasts,
-                               batch_variable = test_param$batch_variable,
-                               covariates = test_param$covariates,
-                               covariates.random = 
-                                 test_param$covariates.random,
-                               moderator_variables =
-                                 test_param$moderator_variables,
-                               n_features = 50,
-                               normalization = "TSS",
-                               transform = "AST",
-                               analysis_method = "LM",
-                               rma_method = "REML",
-                               directory = paste0(dir_outputChunk, 
-                                                  feature_level, "/",
-                                                  test, "/"),
-                               forest.plots = TRUE,
-                               verbose = FALSE)
-    save(result, file = paste0(dir_outputChunk, feature_level, "/",
-                               test, "/result.RData"))
-    # load(paste0(dir_outputChunk, feature_level, "/",
-    #             test, "/result.RData"))
+    # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+    #                            data = metadata_test %>%
+    #                              dplyr::filter(!!test_param$exprs_filter),
+    #                            test_variable = test_param$test_variable,
+    #                            contrasts = test_param$contrasts,
+    #                            batch_variable = test_param$batch_variable,
+    #                            covariates = test_param$covariates,
+    #                            covariates.random = 
+    #                              test_param$covariates.random,
+    #                            moderator_variables =
+    #                              test_param$moderator_variables,
+    #                            n_features = 50,
+    #                            normalization = "TSS",
+    #                            transform = "AST",
+    #                            analysis_method = "LM",
+    #                            rma_method = "REML",
+    #                            directory = paste0(dir_outputChunk, 
+    #                                               feature_level, "/",
+    #                                               test, "/"),
+    #                            forest.plots = TRUE,
+    #                            verbose = FALSE)
+    # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+    #                            test, "/result.RData"))
+    load(paste0(dir_outputChunk, feature_level, "/",
+                test, "/result.RData"))
     l_results[[test]] <- result
   }
   result_all <- l_results %>% 
@@ -235,21 +377,16 @@ for(feature_level in c("genera", "species", "otus")) {
   
   # Visualization
   # disease status
-  i_tests <- c("CD_vs_control", "UC_vs_control", "CD_vs_UC")
-  plot_metaAnalysis(l_results, i_tests, "disease_status", 
+  plot_metaAnalysis(l_results, tests_disease, "disease", 
                     paste0(dir_outputChunk, feature_level, "/"))
   # disease subtype
-  i_tests <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
-               "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
-  plot_metaAnalysis(l_results, i_tests, "disease_subtype", 
+  plot_metaAnalysis(l_results, tests_diseaseSubtype, "disease_subtype", 
                     paste0(dir_outputChunk, feature_level, "/"))
   # treatment
-  i_tests <- c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA")
-  plot_metaAnalysis(l_results, i_tests, "treatment", 
+  plot_metaAnalysis(l_results, tests_treatment, "treatment", 
                     paste0(dir_outputChunk, feature_level, "/"))
-  # covariates
-  i_tests <- c("age", "gender")
-  plot_metaAnalysis(l_results, i_tests, "covariates", 
+  # covariate
+  plot_metaAnalysis(l_results, tests_covariate, "covariate", 
                     paste0(dir_outputChunk, feature_level, "/"))
 }
 ```
@@ -272,163 +409,167 @@ for(test in names(l_tests)) {
   l_results_otus[[test]] <- result
 }
 
-tb_species <- l_results_species %>% 
+tb_species <- l_results_species %>%
   purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>% 
-      dplyr::filter(k >= 2) %>% 
-      dplyr::transmute(feature_species = feature, 
-                       beta_species = beta, 
-                       se_species = se, 
-                       pval_species = pval) %>% 
-      dplyr::mutate(q.fdr_species = p.adjust(pval_species, method = "fdr")) %>% 
+    result$tb_summarise %>%
+      dplyr::filter(k >= 2) %>%
+      dplyr::transmute(feature_species = feature,
+                       beta_species = beta,
+                       se_species = se,
+                       pval_species = pval) %>%
+      dplyr::mutate(q.fdr_species = p.adjust(pval_species, method = "fdr")) %>%
       dplyr::mutate(test = test)
   })
-tb_otus <- l_results_otus %>% 
+tb_otus <- l_results_otus %>%
   purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>% 
-      dplyr::filter(k >= 2) %>% 
-      dplyr::select(feature, 
-                    beta, 
-                    se, 
-                    pval) %>% 
-      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+    result$tb_summarise %>%
+      dplyr::filter(k >= 2) %>%
+      dplyr::select(feature,
+                    beta,
+                    se,
+                    pval) %>%
+      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>%
       dplyr::mutate(test = test)
-  }) %>% 
-  dplyr::mutate(feature_species = feature %>% 
-                  stringr::str_replace_all("\\|\\d+$", "") %>% 
+  }) %>%
+  dplyr::mutate(feature_species = feature %>%
+                  stringr::str_replace_all("\\|\\d+$", "") %>%
                   paste0("|NA"))
 tb_plot <- tb_otus %>% 
-  left_join(tb_species, by = c("test", "feature_species")) %>% 
-  dplyr::group_by(feature_species, test) %>% 
-  dplyr::mutate(n_otus = n(),
-                q.fdr_min = min(q.fdr)) %>% 
-  dplyr::ungroup()
-p <- tb_plot %>% 
-  dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
-                n_otus > 1,
-                test %in% ("CD_vs_control")) %>% 
-  ggplot(aes(x = feature_species, y = beta)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(aes(color = q.fdr < 0.05), position = position_jitter(width = 0.25)) +
-  geom_point(aes(x = feature_species, y = beta_species, color = q.fdr_species < 0.05), 
-             shape = 17, size = 3) +
-  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
-  coord_flip()
-ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
-       p,
-       height = tb_plot %>% 
-         dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
-                n_otus > 1,
-                test %in% ("CD_vs_control")) %>% 
-         dplyr::pull(feature_species) %>% 
-         unique %>% length %>% divide_by(4),
-       width = 15)
+  dplyr::left_join(tb_species,
+                   by = c("feature_species", "test"))
+list(disease = tests_disease,
+     disease_subtype = tests_diseaseSubtype,
+     treatment = tests_treatment) %>% 
+  purrr::iwalk(function(tests, name_tests) {
+    p <- tb_plot %>%
+      dplyr::filter(test %in% (tests)) %>%
+      dplyr::mutate(test = factor(test, levels = tests)) %>% 
+      dplyr::group_by(feature_species) %>% 
+      dplyr::mutate(q.fdr_min = min(q.fdr)) %>% dplyr::ungroup() %>% 
+      dplyr::filter(q.fdr_min < 0.05) %>% 
+      ggplot(aes(x = feature_species, y = beta)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_point(aes(color = q.fdr < 0.05), 
+                 position = position_jitter(width = 0.25)) +
+      geom_point(aes(x = feature_species, 
+                     y = beta_species, 
+                     color = q.fdr_species < 0.05),
+                 shape = 17, size = 3) +
+      scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+      facet_grid(.~test, scales = "free") + coord_flip()
+    ggsave(paste0(dir_outputChunk, name_tests, ".pdf"),
+           p,
+           height = p$data$feature_species %>% 
+             unique %>% length %>% divide_by(4),
+           width = 10 + 4*length(tests),
+           limitsize = FALSE)
+  })
 ```
 
-# Effect modification of sample type / disease status?
-```{r Maaslin2 OTU vs. species}
-dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
-dir.create(dir_outputChunk)
-l_results_genera <- l_results_species <- l_results_otus <- list()
-for(test in names(l_tests)) {
-  print(test)
-  test_param <- l_tests[[test]]
-  # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-  #                            data = metadata_test %>%
-  #                              dplyr::filter(!!test_param$exprs_filter),
-  #                            test_variable = test_param$test_variable,
-  #                            contrasts = test_param$contrasts,
-  #                            batch_variable = test_param$batch_variable,
-  #                            covariates = test_param$covariates,
-  #                            covariates.random = 
-  #                              test_param$covariates.random,
-  #                            moderator_variables =
-  #                              test_param$moderator_variables,
-  #                            n_features = 50,
-  #                            normalization = "TSS",
-  #                            transform = "AST",
-  #                            analysis_method = "LM",
-  #                            rma_method = "REML",
-  #                            directory = paste0(dir_outputChunk, 
-  #                                               feature_level, "/",
-  #                                               test, "/"),
-  #                            forest.plots = TRUE,
-  #                            verbose = FALSE)
-  # save(result, file = paste0(dir_outputChunk, feature_level, "/",
-  #                            test, "/result.RData"))
-  load(paste0("results/4-association/Maaslin2/genera/",
-              test, "/result.RData"))
-  l_results_genera[[test]] <- result
-  load(paste0("results/4-association/Maaslin2/species/",
-              test, "/result.RData"))
-  l_results_species[[test]] <- result
-  load(paste0("results/4-association/Maaslin2/otus/",
-              test, "/result.RData"))
-  l_results_otus[[test]] <- result
-}
-tb_genera <- l_results_genera[c("antibiotics",
-                                "steroids",
-                                "mesalamine_5ASA")] %>% 
-  purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>% 
-      dplyr::filter(k >= 2) %>% 
-      dplyr::select(feature, 
-                    beta, 
-                    se, 
-                    pval,
-                    `p.moderator_sample_type+disease`) %>% 
-      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
-      dplyr::mutate(test = test)
-  })
-tb_genera %>% 
-  dplyr::filter(q.fdr < 0.05,
-                `p.moderator_sample_type+disease` < 0.05) %>% 
-  View
-tb_otus <- l_results_otus[c("antibiotics",
-                                "steroids",
-                                "mesalamine_5ASA")] %>% 
-  purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>% 
-      dplyr::filter(k >= 2) %>% 
-      dplyr::select(feature, 
-                    beta, 
-                    se, 
-                    pval,
-                    `p.moderator_sample_type+disease`) %>% 
-      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
-      dplyr::mutate(test = test)
-  })
-tb_otus %>% 
-  dplyr::filter(q.fdr < 0.05 & `p.moderator_sample_type+disease` < 0.05) %>% 
-  View
-tb_plot <- tb_otus %>% 
-  left_join(tb_species, by = c("test", "feature_species")) %>% 
-  dplyr::group_by(feature_species, test) %>% 
-  dplyr::mutate(n_otus = n(),
-                q.fdr_min = min(q.fdr)) %>% 
-  dplyr::ungroup()
-p <- tb_plot %>% 
-  dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
-                n_otus > 1,
-                test %in% ("CD_vs_control")) %>% 
-  ggplot(aes(x = feature_species, y = beta)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(aes(color = q.fdr < 0.05), position = position_jitter(width = 0.25)) +
-  geom_point(aes(x = feature_species, y = beta_species, color = q.fdr_species < 0.05), 
-             shape = 17, size = 3) +
-  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
-  coord_flip()
-ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
-       p,
-       height = tb_plot %>% 
-         dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
-                n_otus > 1,
-                test %in% ("CD_vs_control")) %>% 
-         dplyr::pull(feature_species) %>% 
-         unique %>% length %>% divide_by(4),
-       width = 15)
-tax_table2(phylo_genera_adj) %>% 
-  as.data.frame() %>% 
-  dplyr::filter(Rank5 %in% "f__Enterococcaceae") %>% 
-  View
+# Effect modification of sample type/disease status?
+```{r Maaslin2 effect modification}
+# dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
+# dir.create(dir_outputChunk)
+# l_results_genera <- l_results_species <- l_results_otus <- list()
+# for(test in names(l_tests)) {
+#   print(test)
+#   test_param <- l_tests[[test]]
+#   # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+#   #                            data = metadata_test %>%
+#   #                              dplyr::filter(!!test_param$exprs_filter),
+#   #                            test_variable = test_param$test_variable,
+#   #                            contrasts = test_param$contrasts,
+#   #                            batch_variable = test_param$batch_variable,
+#   #                            covariates = test_param$covariates,
+#   #                            covariates.random = 
+#   #                              test_param$covariates.random,
+#   #                            moderator_variables =
+#   #                              test_param$moderator_variables,
+#   #                            n_features = 50,
+#   #                            normalization = "TSS",
+#   #                            transform = "AST",
+#   #                            analysis_method = "LM",
+#   #                            rma_method = "REML",
+#   #                            directory = paste0(dir_outputChunk, 
+#   #                                               feature_level, "/",
+#   #                                               test, "/"),
+#   #                            forest.plots = TRUE,
+#   #                            verbose = FALSE)
+#   # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+#   #                            test, "/result.RData"))
+#   load(paste0("results/4-association/Maaslin2/genera/",
+#               test, "/result.RData"))
+#   l_results_genera[[test]] <- result
+#   load(paste0("results/4-association/Maaslin2/species/",
+#               test, "/result.RData"))
+#   l_results_species[[test]] <- result
+#   load(paste0("results/4-association/Maaslin2/otus/",
+#               test, "/result.RData"))
+#   l_results_otus[[test]] <- result
+# }
+# tb_genera <- l_results_genera[c("antibiotics",
+#                                 "steroids",
+#                                 "mesalamine_5ASA")] %>% 
+#   purrr::imap_dfr(function(result, test) {
+#     result$tb_summarise %>% 
+#       dplyr::filter(k >= 2) %>% 
+#       dplyr::select(feature, 
+#                     beta, 
+#                     se, 
+#                     pval,
+#                     `p.moderator_sample_type+disease`) %>% 
+#       dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+#       dplyr::mutate(test = test)
+#   })
+# tb_genera %>% 
+#   dplyr::filter(q.fdr < 0.05,
+#                 `p.moderator_sample_type+disease` < 0.05) %>% 
+#   View
+# tb_otus <- l_results_otus[c("antibiotics",
+#                                 "steroids",
+#                                 "mesalamine_5ASA")] %>% 
+#   purrr::imap_dfr(function(result, test) {
+#     result$tb_summarise %>% 
+#       dplyr::filter(k >= 2) %>% 
+#       dplyr::select(feature, 
+#                     beta, 
+#                     se, 
+#                     pval,
+#                     `p.moderator_sample_type+disease`) %>% 
+#       dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>% 
+#       dplyr::mutate(test = test)
+#   })
+# tb_otus %>% 
+#   dplyr::filter(q.fdr < 0.05 & `p.moderator_sample_type+disease` < 0.05) %>% 
+#   View
+# tb_plot <- tb_otus %>% 
+#   left_join(tb_species, by = c("test", "feature_species")) %>% 
+#   dplyr::group_by(feature_species, test) %>% 
+#   dplyr::mutate(n_otus = n(),
+#                 q.fdr_min = min(q.fdr)) %>% 
+#   dplyr::ungroup()
+# p <- tb_plot %>% 
+#   dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+#                 n_otus > 1,
+#                 test %in% ("CD_vs_control")) %>% 
+#   ggplot(aes(x = feature_species, y = beta)) +
+#   geom_boxplot(outlier.shape = NA) +
+#   geom_point(aes(color = q.fdr < 0.05), position = position_jitter(width = 0.25)) +
+#   geom_point(aes(x = feature_species, y = beta_species, color = q.fdr_species < 0.05), 
+#              shape = 17, size = 3) +
+#   scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+#   coord_flip()
+# ggsave(paste0(dir_outputChunk, "CD_vs_control.pdf"),
+#        p,
+#        height = tb_plot %>% 
+#          dplyr::filter(q.fdr_min <= 0.05 | q.fdr_species <= 0.05,
+#                 n_otus > 1,
+#                 test %in% ("CD_vs_control")) %>% 
+#          dplyr::pull(feature_species) %>% 
+#          unique %>% length %>% divide_by(4),
+#        width = 15)
+# tax_table2(phylo_genera_adj) %>% 
+#   as.data.frame() %>% 
+#   dplyr::filter(Rank5 %in% "f__Enterococcaceae") %>% 
+#   View
 ```

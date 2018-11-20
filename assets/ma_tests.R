@@ -177,3 +177,8 @@ l_tests <- list(
                 exprs_filter = quo(disease %in% c("CD", "UC", "control") &
                                      gender_fill %in% c("f", "m")))
 )
+tests_disease <- c("CD_vs_control", "UC_vs_control", "CD_vs_UC")
+tests_treatment <- c("antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA")
+tests_diseaseSubtype <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
+                          "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
+tests_covariate <- c("age", "gender")
