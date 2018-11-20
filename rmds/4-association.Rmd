@@ -149,6 +149,9 @@ metadata_test <- metadata %>%
 dir_outputChunk <- paste0(dir_output, "PERMANOVA/per_study/")
 dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
 n_permutations <- 2
+
+metadata_test <- metadata_test %>% 
+  dplyr::mutate(batch_fill = fill_na(batch))
 for(study in studies) {
   print(study)
   dir.create(paste0(dir_outputChunk, study, "/"), 
@@ -206,7 +209,7 @@ for(study in studies) {
                     data = metadata_test_tmp, permutations = n_permutations)
   }
   save(fit_adonis_disease, 
-       file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
+       file = paste0(dir_outputChunk, study, "/fit_adonis_disease.RData"))
   
   if(length(unique(metadata_test_tmp$body_site)) < 2) {
     fit_adonis_bodySite <- NULL
@@ -221,69 +224,174 @@ for(study in studies) {
                       data = metadata_test_tmp, permutations = n_permutations)
     }
   }
-  save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
+  save(fit_adonis_bodySite, 
+       file = paste0(dir_outputChunk, study, "/fit_adonis_bodySite.RData"))
   
   fit_adonis_subject <-
     vegan::adonis(dist_genera_adj_tmp ~ subject_accession,
                   data = metadata_test_tmp, permutations = n_permutations)
-  save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+  save(fit_adonis_subject, 
+       file = paste0(dir_outputChunk, study, "/fit_adonis_subject.RData"))
 }
 
-studies %>% 
+tb_plot <- studies %>% 
   purrr::map_dfr(function(study) {
-    load(paste0(dir_outputChunk, study, "/l_fit_adonisMarg.RData"))
+    l_fit_adonisMarg <- get(load(paste0(dir_outputChunk, study, "/l_fit_adonisMarg.RData")))
     tb_marg <- c("race",
                  "gender",
                  "age.cat",
                  "age_at_diagnosis.cat") %>%
       purrr::map2_dfr(l_fit_adonisMarg, function(variable, i_fit_adonis) {
-        tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[1:2],
-                       pval = i_fit_adonis$aov.tab$`Pr(>F)`[1:2],
-                       variable = variable,
-                       is_NA = c("is_NA", "non_missing"))
+        if(is.null(i_fit_adonis)) {
+          tibble::tibble(R2 = NA_real_,
+                         pval = NA_real_,
+                         variable = variable,
+                         is_NA = "non_missing") %>% 
+            return()
+        } else {
+          aov.tab <- i_fit_adonis$aov.tab
+          if(nrow(aov.tab) == 4) {
+            tibble::tibble(R2 = aov.tab$R2[1:2],
+                           pval = aov.tab$`Pr(>F)`[1:2],
+                           variable = variable,
+                           is_NA = c("is_NA", "non_missing")) %>% 
+              return()
+          } else {
+            tibble::tibble(R2 = aov.tab$R2[1],
+                           pval = aov.tab$`Pr(>F)`[1],
+                           variable = variable,
+                           is_NA = "non_missing") %>% 
+              return()
+          }
+        }
       })
+    
+    l_fit_adonisCond <- get(load(paste0(dir_outputChunk, study, "/l_fit_adonisCond.RData")))
     tb_cond <-c("B.cat", "L.cat", "E.cat",
                 "antibiotics",
                 "immunosuppressants",
                 "steroids",
                 "mesalamine_5ASA") %>%
       purrr::map2_dfr(l_fit_adonisCond, function(variable, i_fit_adonis) {
-        tibble::tibble(R2 = i_fit_adonis$aov.tab$R2[2:3],
-                       pval = i_fit_adonis$aov.tab$`Pr(>F)`[2:3],
-                       variable = variable,
-                       is_NA = c("is_NA", "non_missing"))
+        if(is.null(i_fit_adonis)) {
+          tibble::tibble(R2 = NA_real_,
+                         pval = NA_real_,
+                         variable = variable,
+                         is_NA = "non_missing") %>% 
+            return()
+        } else {
+          aov.tab <- i_fit_adonis$aov.tab
+          if("disease" %in% rownames(aov.tab)) aov.tab <- aov.tab[-1, ]
+          if(nrow(aov.tab) == 4) {
+            tibble::tibble(R2 = aov.tab$R2[1:2],
+                           pval = aov.tab$`Pr(>F)`[1:2],
+                           variable = variable,
+                           is_NA = c("is_NA", "non_missing")) %>% 
+              return()
+          } else {
+            tibble::tibble(R2 = aov.tab$R2[1],
+                           pval = aov.tab$`Pr(>F)`[1],
+                           variable = variable,
+                           is_NA = "non_missing") %>% 
+              return()
+          }
+        }
       })
-    tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1],
-                                 pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
-                                 variable = "disease", is_NA = "non_missing")
-    tb_bodySite <- tibble::tibble(R2 = fit_adonis_bodySite$aov.tab$R2[1:2],
-                                  pval = fit_adonis_bodySite$aov.tab$`Pr(>F)`[1:2],
-                                  variable = c("stool/biopsy", "biopsy_site"),
-                                  is_NA = "non_missing")
-    tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1:2],
-                                 pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1:2],
-                                 variable = c("study", "subject"),
+    
+    fit_adonis_disease <- get(load(paste0(dir_outputChunk, study, "/fit_adonis_disease.RData")))
+    if(is.null(fit_adonis_disease)) {
+      tb_disease <- tibble::tibble(R2 = NA_real_,
+                                   pval = NA_real_,
+                                   variable = "disease", 
+                                   is_NA = "non_missing")
+    } else {
+      tb_disease <- tibble::tibble(R2 = fit_adonis_disease$aov.tab$R2[1],
+                                   pval = fit_adonis_disease$aov.tab$`Pr(>F)`[1],
+                                   variable = "disease", is_NA = "non_missing")
+    }
+    
+    fit_adonis_bodySite <- get(load(paste0(dir_outputChunk, study, "/fit_adonis_bodySite.RData")))
+    if(is.null(fit_adonis_bodySite)) {
+      tb_bodySite <- tibble::tibble(R2 = NA_real_,
+                                    pval = NA_real_,
+                                    variable = c("stool/biopsy", "biopsy_site"), 
+                                    is_NA = "non_missing")
+    } else {
+      aov.tab <- fit_adonis_bodySite$aov.tab
+      if(nrow(aov.tab) == 4) {
+        tb_bodySite <- tibble::tibble(R2 = aov.tab$R2[1:2],
+                                      pval = aov.tab$`Pr(>F)`[1:2],
+                                      variable = c("stool/biopsy", "biopsy_site"),
+                                      is_NA = "non_missing")
+      } else {
+        tb_bodySite <- tibble::tibble(R2 = aov.tab$R2[1],
+                                      pval = aov.tab$`Pr(>F)`[1],
+                                      variable = c("biopsy_site"),
+                                      is_NA = "non_missing")
+      }
+    }
+    
+    fit_adonis_subject <- get(load(paste0(dir_outputChunk, study, "/fit_adonis_subject.RData")))
+    tb_subject <- tibble::tibble(R2 = fit_adonis_subject$aov.tab$R2[1],
+                                 pval = fit_adonis_subject$aov.tab$`Pr(>F)`[1],
+                                 variable = c("subject"),
                                  is_NA = "non_missing")
-    tb_plot <- rbind(tb_bodySite, tb_marg, tb_disease, tb_cond, tb_subject) %>%
-      dplyr::mutate(variable = factor(variable, levels = rev(unique(variable))),
-                    is_NA = factor(is_NA, levels = c("non_missing", "is_NA"))) %>%
-      dplyr::mutate(p_levels =
-                      dplyr::case_when(
-                        pval <= 0.001 ~ "***",
-                        pval <= 0.01 ~ "**",
-                        pval <= 0.05 ~ "*",
-                        TRUE ~ ""
-                      ))
-    tb_plot %>%
-      ggplot(aes(x = is_NA, y = variable, fill = R2)) +
-      geom_tile() +
-      scale_fill_gradient(low = "white", high = "black", trans = "log10") +
-      geom_text(aes(label = paste0(round(R2*100, digits = 2), "%\n",
-                                   p_levels)),
-                color = "red")
-    ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), width = 5, height = 8)
+    
+    return(rbind(tb_bodySite, tb_marg, 
+                 tb_disease, tb_cond, 
+                 tb_subject) %>% 
+             dplyr::mutate(study = study))
   })
-
+tb_batch <- readr::read_tsv("results/3-adjust_batch/batches/genera/R2_summary.tsv") %>% 
+  dplyr::filter(adjust == "after") %>% 
+  dplyr::transmute(R2 = R2,
+                   pval = Pval,
+                   variable = "batch",
+                   is_NA = "non_missing",
+                   study = study)
+tb_plot <- rbind(tb_plot, tb_batch)
+tb_plot <- tb_plot %>%
+  dplyr::mutate(study = factor(study, levels = studies)) %>%
+  dplyr::mutate(p_levels =
+                  dplyr::case_when(
+                    pval <= 0.001 ~ "***",
+                    pval <= 0.01 ~ "**",
+                    pval <= 0.05 ~ "*",
+                    TRUE ~ ""
+                  ))
+levels_variable <- c("stool/biopsy", "biopsy_site", "race", "race_missing",
+                     "gender", "gender_missing", "age.cat", "age.cat_missing",
+                     "age_at_diagnosis.cat", "age_at_diagnosis.cat_missing",
+                     "disease", "L.cat", "L.cat_missing", "B.cat", "B.cat_missing",
+                     "E.cat", "E.cat_missing",
+                     "antibiotics", "antibiotics_missing", 
+                     "immunosuppressants", "immunosuppressants_missing",
+                     "steroids", "steroids_missing",
+                     "mesalamine_5ASA", "mesalamine_5ASA_missing",
+                     "batch", "subject")
+p <- tb_plot %>%
+  dplyr::mutate(variable = 
+                  ifelse(is_NA == "non_missing",
+                         variable,
+                         paste0(variable, "_missing"))) %>% 
+  dplyr::mutate(variable = factor(variable, 
+                                  levels = rev(levels_variable))) %>% 
+  ggplot(aes(x = study, y = variable, fill = R2)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "black", trans = "log10", na.value = "white") +
+  geom_text(aes(label = ifelse(is.na(R2),
+                               NA,
+                               paste0(round(R2*100, digits = 2), "%\n",
+                                      p_levels))),
+            color = "red") +
+  theme(line = element_blank(),
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank(),
+            panel.border = element_blank()) +
+  rotate_xaxis(15)
+ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), 
+       p,
+       width = 9, height = 11)
 ```
 
 # Maaslin2
