@@ -111,7 +111,7 @@ makeBetterTaxaNames <- function(family, genus, species) {
     genus != "g__" ~ paste(genus %>% 
                              stringr::str_replace_all(stringr::fixed("g__"), ""),
                            "unclassified"),
-    family != "f__" ~ paste(family %>% 
+    family != "f__" ~ paste0(family %>% 
                               stringr::str_replace_all(stringr::fixed("f__"), ""),
                             "(f) unclassified"),
     TRUE ~ "unclassified at family"
