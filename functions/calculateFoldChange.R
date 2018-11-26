@@ -1,5 +1,5 @@
 calculateFoldChange <- function(phylo, test_param) {
-  tb_phylo <- phylo %>% 
+  tb_phylo <- phylo %>%
     phyloseq::transform_sample_counts(tss) %>% 
     phyloseq_to_tb %>% 
     dplyr::filter(!!test_param$exprs_filter) %>% 

@@ -143,7 +143,7 @@ l_tests <- list(
                   contrasts = list("A1" = "0",
                                    "A2" = "1"),
                   batch_variable = "study_site_disease",
-                  covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+                  covariates = c("gender_fill", "race_fill"),
                   covariates.random = "subject_accession_longitudinal",
                   moderator_variables = c("sample_type", "disease"),
                   exprs_filter = quo(disease %in% c("CD", "UC") &
@@ -152,7 +152,7 @@ l_tests <- list(
                   contrasts = list("A1" = "0",
                                    "A3" = "1"),
                   batch_variable = "study_site_disease",
-                  covariates = c("gender_fill", "race_fill", "age.cat_fill"),
+                  covariates = c("gender_fill", "race_fill"),
                   covariates.random = "subject_accession_longitudinal",
                   moderator_variables = c("sample_type", "disease"),
                   exprs_filter = quo(disease %in% c("CD", "UC") &
@@ -182,3 +182,27 @@ tests_treatment <- c("antibiotics", "immunosuppressants", "steroids", "mesalamin
 tests_diseaseSubtype <- c("L2_vs_L1", "L3_vs_L1", "L4", "B2_vs_B1", "B3_vs_B1", 
                           "E2_vs_E1", "E3_vs_E1", "A2_vs_A1", "A3_vs_A1")
 tests_covariate <- c("age", "gender")
+
+
+l_tests_subtype <- list(
+  `CD Behavior` = list(test_variable = "B3",
+           contrasts = list("0" = "0",
+                            "1" = "1"),
+           batch_variable = "study_site",
+           covariates = c("gender_fill", "race_fill", "age.cat_fill", "B23"),
+           covariates.random = "subject_accession_longitudinal",
+           moderator_variables = c("sample_type"),
+           exprs_filter = quo(disease %in% c("CD") &
+                                B.cat %in% c("B1", "B2", "B3") &
+                                B.avail)),
+  `UC Extent` = list(test_variable = "E3",
+           contrasts = list("0" = "0",
+                            "1" = "1"),
+           batch_variable = "study_site",
+           covariates = c("gender_fill", "race_fill", "age.cat_fill", "E23"),
+           covariates.random = "subject_accession_longitudinal",
+           moderator_variables = c("sample_type"),
+           exprs_filter = quo(disease %in% c("UC") &
+                                E.cat %in% c("E1", "E2", "E3") &
+                                E.avail))
+)
