@@ -385,9 +385,9 @@ p <- tb_plot %>%
                                       p_levels))),
             color = "red") +
   theme(line = element_blank(),
-            axis.title.x = element_blank(),
-            axis.title.y = element_blank(),
-            panel.border = element_blank()) +
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        panel.border = element_blank()) +
   rotate_xaxis(15)
 ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"), 
        p,
@@ -415,9 +415,9 @@ metadata_test <- metadata %>%
                 study_site = paste(dataset_name, 
                                    sample_type, 
                                    sep = "_"),
-                study_site_disease = paste0(dataset_name, 
-                                            sample_type, 
-                                            disease, sep = "_"),
+                study_site_disease = paste(dataset_name, 
+                                           sample_type, 
+                                           disease, sep = "_"),
                 subject_accession_longitudinal =
                   ifelse(dataset_name %in%
                            studies_longitudinal,
@@ -435,66 +435,66 @@ for(feature_level in c("genera", "species", "otus")) {
   for(test in names(l_tests)) {
     print(test)
     test_param <- l_tests[[test]]
-    # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-    #                            data = metadata_test %>%
-    #                              dplyr::filter(!!test_param$exprs_filter),
-    #                            test_variable = test_param$test_variable,
-    #                            contrasts = test_param$contrasts,
-    #                            batch_variable = test_param$batch_variable,
-    #                            covariates = test_param$covariates,
-    #                            covariates.random = 
-    #                              test_param$covariates.random,
-    #                            moderator_variables =
-    #                              test_param$moderator_variables,
-    #                            n_features = 50,
-    #                            normalization = "TSS",
-    #                            transform = "AST",
-    #                            analysis_method = "LM",
-    #                            rma_method = "REML",
-    #                            directory = paste0(dir_outputChunk, 
-    #                                               feature_level, "/",
-    #                                               test, "/"),
-    #                            forest.plots = TRUE,
-    #                            verbose = FALSE)
-    # save(result, file = paste0(dir_outputChunk, feature_level, "/",
-    #                            test, "/result.RData"))
-    load(paste0(dir_outputChunk, feature_level, "/",
-                test, "/result.RData"))
+    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+                               data = metadata_test %>%
+                                 dplyr::filter(!!test_param$exprs_filter),
+                               test_variable = test_param$test_variable,
+                               contrasts = test_param$contrasts,
+                               batch_variable = test_param$batch_variable,
+                               covariates = test_param$covariates,
+                               covariates.random =
+                                 test_param$covariates.random,
+                               moderator_variables =
+                                 test_param$moderator_variables,
+                               n_features = 50,
+                               normalization = "TSS",
+                               transform = "AST",
+                               analysis_method = "LM",
+                               rma_method = "REML",
+                               directory = paste0(dir_outputChunk,
+                                                  feature_level, "/",
+                                                  test, "/"),
+                               forest.plots = TRUE,
+                               verbose = FALSE)
+    save(result, file = paste0(dir_outputChunk, feature_level, "/",
+                               test, "/result.RData"))
+    # load(paste0(dir_outputChunk, feature_level, "/",
+    #             test, "/result.RData"))
     l_results[[test]] <- result
   }
-  result_all <- l_results %>% 
+  result_all <- l_results %>%
     purrr::imap_dfr(function(result, test) {
-      result$tb_summarise %>% 
-        tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>% 
-        dplyr::group_by_at(vars(-weight, -study)) %>% 
-        dplyr::arrange(desc(weight)) %>% 
+      result$tb_summarise %>%
+        tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>%
+        dplyr::group_by_at(vars(-weight, -study)) %>%
+        dplyr::arrange(desc(weight)) %>%
         dplyr::summarise(max_weight = weight[1],
-                         study_max_weight = study[1]) %>% 
-        dplyr::ungroup() %>% 
-        dplyr::mutate(study_max_weight = study_max_weight %>% 
+                         study_max_weight = study[1]) %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(study_max_weight = study_max_weight %>%
                         stringr::str_replace_all("weight\\_", ""),
                       test = test,
                       q.fdr_meta = ifelse(k > 2,
                                           pval,
-                                          NA_real_) %>% 
+                                          NA_real_) %>%
                         p.adjust(method = "fdr"))
     })
-  readr::write_tsv(result_all, paste0(dir_outputChunk, 
+  readr::write_tsv(result_all, paste0(dir_outputChunk,
                                       feature_level,
                                       "/all_results.tsv"))
   
   # Visualization
   # disease status
-  plot_metaAnalysis(l_results, tests_disease, "disease", 
+  plot_metaAnalysis(l_results, tests_disease, "disease",
                     paste0(dir_outputChunk, feature_level, "/"))
   # disease subtype
-  plot_metaAnalysis(l_results, tests_diseaseSubtype, "disease_subtype", 
+  plot_metaAnalysis(l_results, tests_diseaseSubtype, "disease_subtype",
                     paste0(dir_outputChunk, feature_level, "/"))
   # treatment
-  plot_metaAnalysis(l_results, tests_treatment, "treatment", 
+  plot_metaAnalysis(l_results, tests_treatment, "treatment",
                     paste0(dir_outputChunk, feature_level, "/"))
   # covariate
-  plot_metaAnalysis(l_results, tests_covariate, "covariate", 
+  plot_metaAnalysis(l_results, tests_covariate, "covariate",
                     paste0(dir_outputChunk, feature_level, "/"))
 }
 ```
@@ -573,7 +573,97 @@ list(disease = tests_disease,
            limitsize = FALSE)
   })
 ```
+# Testing for directional change on CD Behavior and UC Extent
+```{r trend test}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/subtype_direction/")
+dir.create(dir_outputChunk)
+source("assets/ma_tests.R")
 
+metadata_test <- metadata %>% 
+  dplyr::mutate(race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                subject_accession_longitudinal =
+                  ifelse(dataset_name %in%
+                           studies_longitudinal,
+                         subject_accession,
+                         NA_character_)) %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::mutate(B.avail = dplyr::n_distinct(B.cat, na.rm = TRUE) == 3,
+                E.avail = dplyr::n_distinct(E.cat, na.rm = TRUE) == 3) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(B23 = ifelse(B.cat %in% c("B2", "B3"),
+                             1,
+                             0),
+                B3 = ifelse(B.cat == "B3",
+                            1,
+                            0),
+                E23 = ifelse(E.cat %in% c("E2", "E3"),
+                             1,
+                             0),
+                E3 = ifelse(E.cat == "E3",
+                            1,
+                            0))
+
+for(feature_level in "species") {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
+  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    transform_sample_counts(tss) %>%  
+    otu_table2
+  
+  l_results <- list()
+  for(test in names(l_tests_subtype)) {
+    print(test)
+    test_param <- l_tests_subtype[[test]]
+    # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+    #                            data = metadata_test %>%
+    #                              dplyr::filter(!!test_param$exprs_filter),
+    #                            test_variable = test_param$test_variable,
+    #                            contrasts = test_param$contrasts,
+    #                            batch_variable = test_param$batch_variable,
+    #                            covariates = test_param$covariates,
+    #                            covariates.random =
+    #                              test_param$covariates.random,
+    #                            moderator_variables =
+    #                              test_param$moderator_variables,
+    #                            n_features = 50,
+    #                            normalization = "TSS",
+    #                            transform = "AST",
+    #                            analysis_method = "LM",
+    #                            rma_method = "REML",
+    #                            directory = paste0(dir_outputChunk,
+    #                                               feature_level, "/",
+    #                                               test, "/"),
+    #                            forest.plots = TRUE,
+    #                            verbose = FALSE)
+    # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+    #                            test, "/result.RData"))
+    load(paste0(dir_outputChunk, feature_level, "/",
+                test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  for(test in c("B2_vs_B1", "B3_vs_B1",
+                "E2_vs_E1", "E3_vs_E1")) {
+    print(test)
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  
+  plot_metaAnalysis(l_results, c("B2_vs_B1", "B3_vs_B1", "CD Behavior",
+                                 "E2_vs_E1", "E3_vs_E1", "UC Extent"), 
+                    "disease_subtype_direction",
+                    paste0(dir_outputChunk, feature_level, "/"))
+}
+
+```
 # Effect modification of sample type/disease status?
 ```{r Maaslin2 effect modification}
 # dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
