@@ -152,7 +152,7 @@ fit_metaAnalysis <- function(mat_otu,
       ggsave(filename = paste0(directory, "sensitivity.pdf"),
              ., width = 8, height = 8)
   }
- 
+  
   # significant results
   tb_towrite <- result$meta.results
   if(!is.null(moderator_variables))
@@ -296,26 +296,19 @@ fit_rma.mod <- function(l.Maaslin.fit, data.moderator,
   if(!all(lvl.batch %in% rownames(data.moderator)))
     stop("data.moderator must have all the batches fitted in Maaslin!")
   data.moderator <- data.moderator[lvl.batch, , drop = FALSE]
+  if(!all(sapply(data.moderator, class) %in% "factor"))
+    stop("data.moderator must have all columns be factor")
+  if(!all(sapply(data.moderator, nlevels) == 2))
+    stop("data.moderator must have all columns be two-level factors")
+  if(is.null(colnames(data.moderator)))
+    stop("data.moderator must have colnames!")
+  
   exposure <- unique(l.Maaslin.fit[[1]]$metadata)
   values.exposure <- unique(l.Maaslin.fit[[1]]$value)
   features <- unique(l.Maaslin.fit[[1]]$feature)
+  
   l.results <- list()
   for(value.exposure in values.exposure) {
-    b.mat <- p.mat <- matrix(NA, nrow = length(features), 
-                             ncol = ncol(model.matrix(~., data.moderator)))
-    rownames(b.mat) <- rownames(p.mat) <- features
-    colnames(b.mat) <- paste0("beta_", colnames(model.matrix(~., data.moderator)))
-    colnames(p.mat) <- paste0("p_", colnames(model.matrix(~., data.moderator)))
-    i.result <- data.frame(feature = features,
-                           exposure = value.exposure,
-                           tau2 = NA,
-                           se.tau2 = NA,
-                           p.tau2 = NA,
-                           p.moderator = NA,
-                           I2 = NA,
-                           H2 = NA,
-                           R2 = NA, stringsAsFactors = FALSE)
-    rownames(i.result) <- i.result$feature
     # sanity check
     if(any(features != l.Maaslin.fit[[2]][l.Maaslin.fit[[2]]$value == value.exposure, "feature"]))
       stop("Feature names don't match between l.Maaslin.fit components!")
@@ -328,50 +321,71 @@ fit_rma.mod <- function(l.Maaslin.fit, data.moderator,
     rownames(betas) <- rownames(sds) <- features
     ind.feature <- !is.na(betas) & !is.na(sds) & (sds != 0)
     count.feature <- apply(ind.feature, 1, sum)
-    for(feature in features) {
-      if(count.feature[feature] <= 1) next
-      suppressWarnings(tmp.rma.fit <-
-                         try(metafor::rma.uni(yi = betas[feature, ind.feature[feature, ]],
-                                              sei = sds[feature, ind.feature[feature, ]],
-                                              mod = ~.,
-                                              data = data.moderator[ind.feature[feature, ], ,
-                                                                    drop = FALSE],
-                                              method = method,
-                                              control = list(threshold = 1e-10,
-                                                             maxiter = 1000)),
-                             silent = TRUE)) # FIXME
-      if("try-error" %in% class(tmp.rma.fit))
-        next
-      if(is.null(tmp.rma.fit$R2))
-        next
+    
+    for(variable.moderator in colnames(data.moderator)) {
+      levels.moderator <- levels(data.moderator[, variable.moderator])
+      i.result <- expand.grid(feature = features, 
+                              exposure = value.exposure, 
+                              moderator = variable.moderator,
+                              moderator_level = c(levels.moderator, "difference"),
+                              beta = NA_real_, 
+                              se = NA_real_,
+                              pval = NA_real_,
+                              k = NA_integer_,
+                              stringsAsFactors = FALSE)
+      i.data.moderator <- data.frame(dummy_var = (data.moderator[, variable.moderator] ==
+                                                    levels.moderator[2]) * 1)
+      i.data.moderator2 <- data.frame(dummy_var = 1 - i.data.moderator$dummy_var)
+      rownames(i.data.moderator) <- rownames(i.data.moderator2) <- rownames(data.moderator)
       
-      # Sanity check
-      cols.tmp <- model.matrix(~., data.moderator[ind.feature[feature, ], ,
-                                                  drop = FALSE])[, -1] %>% 
-        apply(2, function(x) length(unique(x)) > 1) %>% 
-        c(TRUE, .)
-      if(nrow(tmp.rma.fit$beta) != sum(cols.tmp))
-        stop("Something went wrong!")
-      b.mat[feature, cols.tmp] <- tmp.rma.fit$beta[, 1]
-      p.mat[feature, cols.tmp] <- tmp.rma.fit$pval
-      i.result[feature, c("tau2",
-                          "se.tau2",
-                          "p.tau2",
-                          "p.moderator",
-                          "I2",
-                          "H2",
-                          "R2")] <-
-        unlist(tmp.rma.fit[c("tau2",
-                             "se.tau2",
-                             "QEp",
-                             "QMp",
-                             "I2",
-                             "H2",
-                             "R2")])
+      for(feature in features) {
+        if(count.feature[feature] <= 1) next
+        suppressWarnings(tmp.rma.fit <-
+                           try(metafor::rma.uni(yi = betas[feature, ind.feature[feature, ]],
+                                                sei = sds[feature, ind.feature[feature, ]],
+                                                mod = ~.,
+                                                data = i.data.moderator[ind.feature[feature, ], ,
+                                                                        drop = FALSE],
+                                                method = method,
+                                                control = list(threshold = 1e-10,
+                                                               maxiter = 1000)),
+                               silent = TRUE)) # FIXME
+        if("try-error" %in% class(tmp.rma.fit))
+          next
+        if(is.null(tmp.rma.fit$R2))
+          next
+        # Sanity check
+        if(nrow(tmp.rma.fit$beta) != 2)
+          stop("Something went wrong!")
+        
+        i.result[i.result$feature == feature &
+                   i.result$moderator_level %in% c(levels.moderator[1],"difference"), 
+                 c("beta", "se", "pval", "k")] <- cbind(tmp.rma.fit$beta[, 1],
+                                                        tmp.rma.fit$se,
+                                                        tmp.rma.fit$pval,
+                                                        tmp.rma.fit$k)
+        
+        tmp.rma.fit <-
+          metafor::rma.uni(yi = betas[feature, ind.feature[feature, ]],
+                           sei = sds[feature, ind.feature[feature, ]],
+                           mod = ~.,
+                           data = i.data.moderator2[ind.feature[feature, ], ,
+                                                    drop = FALSE],
+                           method = method,
+                           control = list(threshold = 1e-10,
+                                          maxiter = 1000))
+        i.result[i.result$feature == feature &
+                   i.result$moderator_level %in% c(levels.moderator[2]), 
+                 c("beta", "se", "pval", "k")] <- c(tmp.rma.fit$beta[1, 1],
+                                               tmp.rma.fit$se[1],
+                                               tmp.rma.fit$pval[1],
+                                               tmp.rma.fit$k)
+        
+      }
+      
+      l.results <- c(l.results, list(i.result))
     }
-    l.results[[value.exposure]] <- cbind(i.result, b.mat, p.mat)
   }
   results <- Reduce("rbind", l.results)
-  results$R2[is.na(results$R2) & !is.na(results$tau2)] <- 0
   return(results)
 }
