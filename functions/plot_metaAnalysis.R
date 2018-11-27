@@ -277,4 +277,3 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
   dev.off()
   return(NULL)
 }
-≥

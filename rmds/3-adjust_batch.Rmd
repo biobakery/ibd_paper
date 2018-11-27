@@ -143,7 +143,8 @@ for(feature_level in c("genera", "species", "otus")) {
 dir_outputChunk <- paste0(dir_output, "studies/")
 dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
 for(feature_level in c("genera", "species", "otus")) {
-  dir.create(paste0(dir_outputChunk, feature_level), 
+# for(feature_level in c("genera", "species")) {
+  dir.create(paste0(dir_outputChunk, feature_level),
              recursive = TRUE, showWarnings = TRUE)
   phylo_adj <- get(paste0("phylo_", feature_level, "_adj"))
   mat_otu_adj <- otu_table2(phylo_adj)
@@ -151,12 +152,12 @@ for(feature_level in c("genera", "species", "otus")) {
                                        batch = "dataset_name",
                                        covariates = c("disease", "body_site"),
                                        data = metadata)
-  ggsave(filename = paste0(dir_outputChunk, feature_level, "/", "studies.pdf"), 
+  ggsave(filename = paste0(dir_outputChunk, feature_level, "/", "studies.pdf"),
          width = 8,
          height = 4)
   otu_table(phylo_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
   assign(paste0("phylo_", feature_level, "_adj"), phylo_adj)
-  save(list = paste0("phylo_", feature_level, "_adj"), 
+  save(list = paste0("phylo_", feature_level, "_adj"),
        file = paste0("data/phyloseq/", feature_level, "_adj.RData"))
   distance_adj <- phylo_adj %>%
     transform_sample_counts(tss) %>%
@@ -164,7 +165,9 @@ for(feature_level in c("genera", "species", "otus")) {
   assign(paste0("dist_", feature_level, "_adj"), distance_adj)
   save(list = paste0("dist_", feature_level, "_adj"),
        file = paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  # load(paste0("data/distance/dist_", feature_level, ".RData"))
   # load(paste0("data/distance/dist_", feature_level, "_adj.RData"))
+  distance <- get(paste0("dist_", feature_level))
   distance_adj <- get(paste0("dist_", feature_level, "_adj"))
   ordinate_before <- ape::pcoa(D = distance)
   ordinate_after <- ape::pcoa(D = distance_adj)
