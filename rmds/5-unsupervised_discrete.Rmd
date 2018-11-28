@@ -1,0 +1,110 @@
+---
+title: "5-unsupervised_discrete"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Perform unsupervised discrete structure discovery.
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/5-unsupervised_discrete/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+```{r load data}
+load("data/phyloseq/genera_adj.RData")
+load("data/distance/dist_genera_adj.RData")
+k.max <- 7
+M <- 30
+```
+
+# UC patients
+```{r UC}
+dir_outputChunk <- paste0(dir_output, "UC/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+phylo_tmp <- phylo_genera_adj %>% 
+  phyloseq::subset_samples(disease %in% "UC")
+otu_tmp <- otu_table2(phylo_tmp)
+metadata_tmp <- sample_data2(phylo_tmp)
+distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
+  as.dist()
+fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
+                                           batch = "dataset_name",
+                                           data = metadata_tmp,
+                                           distance = distance_tmp,
+                                           k.max = k.max,
+                                           cluster.method = fpc::claraCBI,
+                                           classify.method = "centroid",
+                                           M = M,
+                                           nnk = 1,
+                                           diagnostics = TRUE,
+                                           verbose = FALSE)
+ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
+       width = k.max/7*length(unique(metadata_tmp$dataset_name)) + 3,
+       height = 5)
+save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
+```
+# CD patients
+```{r CD}
+dir_outputChunk <- paste0(dir_output, "CD/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+phylo_tmp <- phylo_genera_adj %>% 
+  phyloseq::subset_samples(disease %in% "CD")
+otu_tmp <- otu_table2(phylo_tmp)
+metadata_tmp <- sample_data2(phylo_tmp)
+distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
+  as.dist()
+fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
+                                           batch = "dataset_name",
+                                           data = metadata_tmp,
+                                           distance = distance_tmp,
+                                           k.max = k.max,
+                                           cluster.method = fpc::claraCBI,
+                                           classify.method = "centroid",
+                                           M = M,
+                                           nnk = 1,
+                                           diagnostics = TRUE,
+                                           verbose = FALSE)
+ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
+       width = k.max/7*length(unique(metadata_tmp$dataset_name)),
+       height = 5)
+save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
+```
+
+# IBD patients
+```{r IBD}
+dir_outputChunk <- paste0(dir_output, "IBD/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+phylo_tmp <- phylo_genera_adj %>% 
+  phyloseq::subset_samples(disease %in% c("CD", "UC"))
+otu_tmp <- otu_table2(phylo_tmp)
+metadata_tmp <- sample_data2(phylo_tmp)
+distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
+  as.dist()
+fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
+                                           batch = "dataset_name",
+                                           data = metadata_tmp,
+                                           distance = distance_tmp,
+                                           k.max = k.max,
+                                           cluster.method = fpc::claraCBI,
+                                           classify.method = "centroid",
+                                           M = M,
+                                           nnk = 1,
+                                           diagnostics = TRUE,
+                                           verbose = FALSE)
+ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
+       width = k.max/7*length(unique(metadata_tmp$dataset_name)),
+       height = 5)
+save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
+```
