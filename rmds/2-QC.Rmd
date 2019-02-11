@@ -406,32 +406,82 @@ sample_data(phylo_genera) <-
 ```
 # Filter samples and taxa
 ```{r Filter samples and taxa}
-print(phylo_genera)
-phylo_genera <- phylo_genera %>% phyloseq::subset_samples(!is.na(body_site) & !is.na(disease))
-print(phylo_genera)
-phylo_genera <- phylo_genera %>% 
-  prune_taxaSamples(flist_taxa = kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
-                                         A = 1e-4),
-                    flist_samples = function(x) sum(x) > 3000)
-print(phylo_genera)
+# sanity check
+# libSize_genera <- phyloseq::sample_sums(phylo_genera)
+# libSize_species <- phyloseq::sample_sums(phylo_species)
+# all(libSize_species == libSize_genera)
+# record library size before filtering
+libSize <- phyloseq::sample_sums(phylo_genera)
+sample_data(phylo_otus) <- 
+  sample_data(phylo_species) <- 
+  sample_data(phylo_genera) <- 
+  cbind(sample_data2(phylo_genera), 
+        libSize)
 
-print(phylo_species)
-phylo_species <- phylo_species %>% 
-  phyloseq::prune_samples(phyloseq::sample_names(phylo_genera), .) %>% 
-  phyloseq::filter_taxa(kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
-                                         A = 1e-4),
-                        prune = TRUE)
-print(phylo_species)
+cutoff_abundance <- c(1e-5, 1e-4, 1e-3)
+cutoff_prevalence <- c(0.05, 0.1)
+tb_param <-  tidyr::crossing(cutoff_abundance, cutoff_prevalence)
+tb_filter <- (1:nrow(tb_param)) %>% 
+  purrr::map_dfr(function(i_param) {
+    cutoff_abundance <- tb_param$cutoff_abundance[i_param]
+    cutoff_prevalence <- tb_param$cutoff_prevalence[i_param]
+    list(phylo_genera,
+         phylo_species) %>% 
+      purrr::map2_dfr(c("genera", "species"), 
+                      function(phylo, feature_level) {
+                        phylo_rel <- phylo %>% 
+                          phyloseq::transform_sample_counts(MMUPHin:::tss)
+                        tb_presence <- phylo_rel %>% 
+                          phyloseq_to_tb() %>% 
+                          dplyr::group_by(feature, dataset_name) %>% 
+                          dplyr::summarise(
+                            n = n(),
+                            present = sum(abundance > cutoff_abundance) > 
+                              n*cutoff_prevalence
+                          ) %>% 
+                          dplyr::ungroup()
+                        tb_presence %>% 
+                          dplyr::group_by(feature) %>% 
+                          dplyr::summarise(n_study = sum(present)) %>% 
+                          dplyr::mutate(cutoff_abundance = cutoff_abundance,
+                                        cutoff_prevalence = cutoff_prevalence,
+                                        feature_level = feature_level)
+                      })
+  })
+tb_filter %>% 
+  readr::write_tsv(path = paste0(dir_output, "filter.tsv"))
+tb_filter %>% 
+  dplyr::group_by(feature_level, cutoff_abundance, cutoff_prevalence) %>% 
+  dplyr::summarise(nfeature = n(),
+                   nfeature_nonUnique = sum(n_study > 1),
+                   nfeature_unique = sum(n_study == 1)) %>% 
+  dplyr::arrange(feature_level,
+                 dplyr::desc(cutoff_abundance), dplyr::desc(cutoff_prevalence)) %>% 
+  readr::write_tsv(path = paste0(dir_output, "filter_summarise.tsv")) %>% 
+  print()
 
-print(phylo_otus)
-phylo_otus <- phylo_otus %>% 
-  phyloseq::prune_samples(phyloseq::sample_names(phylo_genera), .) %>% 
-  phyloseq::filter_taxa(kOverA2(k = phyloseq::nsamples(phylo_genera) * 0.01,
-                                A = 1e-4),
-                        prune = TRUE)
-print(phylo_otus)
 
+phylo_genera <- 
+  tb_filter %>% 
+  dplyr::filter(feature_level == "genera",
+                cutoff_abundance == 1e-4,
+                cutoff_prevalence == 0.05,
+                n_study >= 1) %>% 
+  dplyr::pull(feature) %>% 
+  phyloseq::prune_taxa(phylo_genera) %>% 
+  prune_taxaSamples()
+boxplot(phyloseq::sample_sums(phylo_genera) / sample_data2(phylo_genera)$libSize)
+phylo_species <- 
+  tb_filter %>% 
+  dplyr::filter(feature_level == "species",
+                cutoff_abundance == 1e-4,
+                cutoff_prevalence == 0.05,
+                n_study >= 1) %>% 
+  dplyr::pull(feature) %>% 
+  phyloseq::prune_taxa(phylo_species) %>% 
+  prune_taxaSamples()
+boxplot(phyloseq::sample_sums(phylo_species) / sample_data2(phylo_species)$libSize)
 save(phylo_genera, file = "data/phyloseq/genera.RData")
 save(phylo_species, file = "data/phyloseq/species.RData")
-save(phylo_otus, file = "data/phyloseq/otus.RData")
+# save(phylo_otus, file = "data/phyloseq/otus.RData")
 ```

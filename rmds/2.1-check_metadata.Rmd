@@ -20,15 +20,87 @@ setup(getwd())
 dir_output <- "results/2.1-check_metadata/"
 dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
+
+# Metadata filtering
+```{r filtering}
+load("data/phyloseq/genera.RData")
+load("data/phyloseq/species.RData")
+phylo_genera <- phylo_genera %>% 
+  phyloseq::subset_samples(libSize >= 3000 &
+                             disease %in% c("CD", "UC", "control") &
+                             !is.na(sample_type) &
+                             !(dataset_name %in% "Pouchitis" & disease %in% "CD"))
+phylo_species <- phylo_species %>% 
+  phyloseq::prune_samples(phyloseq::sample_names(phylo_genera), .)
+# add baseline variable
+metadata <- sample_data2(phylo_genera)
+metadata_HMP2 <- metadata %>% 
+  dplyr::filter(dataset_name == "HMP2") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+metadata_PROTECT <- metadata %>% 
+  dplyr::filter(dataset_name == "PROTECT") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+metadata_LSS_PRISM <- metadata %>% 
+  dplyr::filter(dataset_name == "LSS-PRISM") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+metadata_Jansson <- metadata %>% 
+  dplyr::filter(dataset_name == "Jansson_Lamendella_Crohns") %>% 
+  dplyr::mutate(time_point2 = time_point %>% 
+                  stringr::str_replace_all("\\:.*$", "") %>% 
+                  as.numeric) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+metadata_Herfarth <- metadata %>% 
+  dplyr::filter(dataset_name == "Herfarth_CCFA_Microbiome_3B_combined") %>% 
+  dplyr::mutate(time_point2 = as.Date(time_point, format = "%Y-%m-%d")) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+metadata <- rbind(metadata_HMP2,
+                  metadata_PROTECT,
+                  metadata_LSS_PRISM,
+                  metadata_Jansson,
+                  metadata_Herfarth) %>% 
+  dplyr::right_join(metadata, by = colnames(metadata)) %>% 
+  dplyr::mutate(is_baseline = ifelse(is.na(is_baseline),
+                                     FALSE,
+                                     is_baseline))
+rownames(metadata) <- metadata$sample_accession_16S
+all(rownames(metadata) == sample_names(phylo_genera))
+sample_data(phylo_genera) <- metadata
+sample_data(phylo_species) <- metadata
+any(phyloseq::sample_sums(phylo_genera) == 0)
+any(phyloseq::sample_sums(phylo_species) == 0)
+any(phyloseq::taxa_sums(phylo_genera) == 0)
+any(phyloseq::taxa_sums(phylo_species) == 0)
+save(phylo_genera, file = "data/phyloseq/genera.RData")
+save(phylo_species, file = "data/phyloseq/species.RData")
+```
+
+
 # Availability of metadata
 ```{r check availability}
 template <- readr::read_csv(paste0(dir_processed, "data/template.csv"))
-load("data/phyloseq/genera.RData")
 df_metadata <- sample_data2(phylo_genera)
 df_metaLong <- df_metadata %>% 
   dplyr::select(-(study_accession:alternative_sample_accession),
                 -sample_accession_WGS, -site,
-                -(extraction_kit_16S:reads_mapping_to_unclassifed_OTU)) %>% 
+                -(extraction_kit_16S:median_read_length_16S)) %>% 
   tidyr::gather(key = variable, value = value, -dataset_name, -sample_accession_16S) %>% 
   dplyr::left_join(template, by = c("variable" = "col.name")) %>% 
   dplyr::mutate(variable = factor(variable, levels = template$col.name))
@@ -89,13 +161,5 @@ l_p_num <- df_metaLong %>%
 cowplot::plot_grid(plotlist = l_p_num, ncol = 1) %>% 
   ggsave(filename = paste0(dir_output, "fig_numDist.pdf"),
          width = 8, height = length(l_p_num) * 4)
-```
-
-# Table 1
-```{r table 1}
-df_metadata %>% 
-  dplyr::group_by(dataset_name) %>% 
-  dplyr::do(tb1 = makeTable1(.)) %>% 
-  tidyr::unnest()
 ```
 

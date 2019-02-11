@@ -1,5 +1,5 @@
 ---
-title: "4-association"
+title: "4.1-association_sensitivity"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -7,7 +7,7 @@ html_document:
 df_print: paged
 ---
 # Overview
-Perform association analysis on covariates.
+Sensitivity analysis of associations (before batch adjustment).
 - PERMANOVA
 - Maaslin2
 
@@ -20,7 +20,7 @@ for(i.function in list.files("functions/", full.names = TRUE)) {
   source(i.function)
 }
 setup(getwd())
-dir_output <- "results/4-association/"
+dir_output <- "results/4-association/sensitivity/"
 dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 
@@ -29,11 +29,11 @@ dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 print(studies)
 dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
 dir.create(dir_outputChunk)
-load("data/phyloseq/genera_adj.RData")
-load("data/distance/dist_genera_adj.RData")
-n_permutations <- 10 # set # permuations for PERMANOVA
+load("data/phyloseq/genera.RData")
+load("data/distance/dist_genera.RData")
+n_permutations <- 2 # set # permuations for PERMANOVA
 
-metadata <- sample_data2(phylo_genera_adj)
+metadata <- sample_data2(phylo_genera)
 # manipulate variables to test, so that avoid missing values
 metadata_test <- metadata %>% 
   dplyr::mutate(B.cat_fill = fill_na(B.cat),
@@ -55,45 +55,13 @@ metadata_test <- metadata %>%
                 steroids_fill = fill_na(steroids),
                 mesalamine_5ASA_fill = fill_na(mesalamine_5ASA))
 
-test <- fit_permanova_variable(D = dist_genera_adj, 
-                               variable = "race",
-                               variable_class = "subject",
-                               block_covariates = NULL,
-                               block_variable = "subject_accession",
-                               data = metadata,
-                               permutations = 5, 
-                               ncores = 5)
-test <- fit_permanova_variable(D = dist_genera_adj, 
-                               variable = "mesalamine_5ASA",
-                               variable_class = "sample",
-                               block_covariates = "disease",
-                               block_variable = "subject_accession",
-                               data = metadata,
-                               permutations = 30, 
-                               ncores = 6)
-testtest <- fit_permanova_variable(D = dist_genera_adj, 
-                               variable = "sample_type",
-                               variable_class = "sample",
-                               block_covariates = NULL,
-                               block_variable = "subject_accession",
-                               data = metadata,
-                               permutations = 30, 
-                               ncores = 6)
-test <- fit_permanova_variable(D = dist_genera_adj, 
-                               variable = "sample_type",
-                               variable_class = "sample",
-                               block_covariates = NULL,
-                               block_variable = "subject_accession",
-                               data = metadata,
-                               permutations = 20, 
-                               ncores = 5)
 # whole bunch of PERMANOVA fits
 l_fit_adonisMarg <- paste0(c("race",
                              "gender",
                              "age.cat",
                              "age_at_diagnosis.cat"), "_fill") %>%
   purrr::map(function(variable) {
-    as.formula(paste0("dist_genera_adj~(", variable,
+    as.formula(paste0("dist_genera~(", variable,
                       "==\"NA\")", "+", variable)) %>%
       vegan::adonis(data = metadata_test, permutations = n_permutations)
   })
@@ -105,24 +73,24 @@ l_fit_adonisCond <- paste0(c("B.cat", "L.cat", "E.cat",
                              "steroids",
                              "mesalamine_5ASA"), "_fill") %>%
   purrr::map(function(variable) {
-    as.formula(paste0("dist_genera_adj~disease+(", variable,
+    as.formula(paste0("dist_genera~disease+(", variable,
                       "==\"NA\")", "+", variable)) %>%
       vegan::adonis(data = metadata_test, permutations = n_permutations)
   })
 save(l_fit_adonisCond, file = paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
 # load(paste0(dir_outputChunk, "l_fit_adonisCond.RData"))
 fit_adonis_disease <-
-  vegan::adonis(dist_genera_adj~disease,
+  vegan::adonis(dist_genera~disease,
                 data = metadata_test, permutations = n_permutations)
 save(fit_adonis_disease, file = paste0(dir_outputChunk, "fit_adonis_disease.RData"))
 # load(paste0(dir_outputChunk, "fit_adonis_disease.RData"))
 fit_adonis_bodySite <-
-  vegan::adonis(dist_genera_adj~sample_type + body_site,
+  vegan::adonis(dist_genera~sample_type + body_site,
                 data = metadata_test, permutations = n_permutations)
 save(fit_adonis_bodySite, file = paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
 # load(paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
 fit_adonis_subject <-
-  vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
+  vegan::adonis(dist_genera~dataset_name + subject_accession,
                 data = metadata_test, permutations = n_permutations)
 save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
 # load(paste0(dir_outputChunk, "fit_adonis_subject.RData"))
@@ -184,13 +152,15 @@ dir_outputChunk <- paste0(dir_output, "PERMANOVA/per_study/")
 dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
 n_permutations <- 2
 
+metadata_test <- metadata_test %>% 
+  dplyr::mutate(batch_fill = fill_na(batch))
 for(study in studies) {
   print(study)
   dir.create(paste0(dir_outputChunk, study, "/"), 
              recursive = TRUE, showWarnings = TRUE)
   metadata_test_tmp <- subset(metadata_test, dataset_name == study)
-  dist_genera_adj_tmp <- subset_distance(dist_genera_adj,
-                                         metadata_test$dataset_name == study)
+  dist_genera_tmp <- subset_distance(dist_genera,
+                                     metadata_test$dataset_name == study)
   l_fit_adonisMarg <- paste0(c("race",
                                "gender",
                                "age.cat",
@@ -199,7 +169,7 @@ for(study in studies) {
       if(all(metadata_test_tmp[, variable] == "NA") |
          metadata_test_tmp[, variable] %>% setdiff("NA") %>% 
          length %>% unique %>% is_less_than(2)) return(NULL)
-      as.formula(paste0("dist_genera_adj_tmp~(", variable,
+      as.formula(paste0("dist_genera_tmp~(", variable,
                         "==\"NA\")", "+", variable)) %>%
         vegan::adonis(data = metadata_test_tmp, 
                       permutations = n_permutations)
@@ -217,13 +187,13 @@ for(study in studies) {
          metadata_test_tmp[, variable] %>% setdiff("NA") %>% 
          length %>% unique %>% is_less_than(2)) return(NULL)
       if(length(unique(metadata_test_tmp$disease)) < 2) {
-        as.formula(paste0("dist_genera_adj_tmp~(", variable,
+        as.formula(paste0("dist_genera_tmp~(", variable,
                           "==\"NA\")", "+", variable)) %>%
           vegan::adonis(data = metadata_test_tmp, 
                         permutations = n_permutations) %>% 
           return()
       } else {
-        as.formula(paste0("dist_genera_adj_tmp~disease+(", variable,
+        as.formula(paste0("dist_genera_tmp~disease+(", variable,
                           "==\"NA\")", "+", variable)) %>%
           vegan::adonis(data = metadata_test_tmp, 
                         permutations = n_permutations) %>% 
@@ -237,7 +207,7 @@ for(study in studies) {
     fit_adonis_disease <- NULL
   } else {
     fit_adonis_disease <-
-      vegan::adonis(dist_genera_adj_tmp ~ disease,
+      vegan::adonis(dist_genera_tmp ~ disease,
                     data = metadata_test_tmp, permutations = n_permutations)
   }
   save(fit_adonis_disease, 
@@ -248,11 +218,11 @@ for(study in studies) {
   } else {
     if(all(metadata_test_tmp$sample_type == "biopsy")) {
       fit_adonis_bodySite <-
-        vegan::adonis(dist_genera_adj_tmp ~ body_site,
+        vegan::adonis(dist_genera_tmp ~ body_site,
                       data = metadata_test_tmp, permutations = n_permutations)
     } else {
       fit_adonis_bodySite <-
-        vegan::adonis(dist_genera_adj_tmp ~ sample_type + body_site,
+        vegan::adonis(dist_genera_tmp ~ sample_type + body_site,
                       data = metadata_test_tmp, permutations = n_permutations)
     }
   }
@@ -260,7 +230,7 @@ for(study in studies) {
        file = paste0(dir_outputChunk, study, "/fit_adonis_bodySite.RData"))
   
   fit_adonis_subject <-
-    vegan::adonis(dist_genera_adj_tmp ~ subject_accession,
+    vegan::adonis(dist_genera_tmp ~ subject_accession,
                   data = metadata_test_tmp, permutations = n_permutations)
   save(fit_adonis_subject, 
        file = paste0(dir_outputChunk, study, "/fit_adonis_subject.RData"))
@@ -375,7 +345,7 @@ tb_plot <- studies %>%
              dplyr::mutate(study = study))
   })
 tb_batch <- readr::read_tsv("results/3-adjust_batch/batches/genera/R2_summary.tsv") %>% 
-  dplyr::filter(adjust == "after") %>% 
+  dplyr::filter(adjust == "before") %>% 
   dplyr::transmute(R2 = R2,
                    pval = Pval,
                    variable = "batch",
@@ -430,8 +400,8 @@ ggsave(filename = paste0(dir_outputChunk, "PERMANOVA.pdf"),
 # Maaslin2
 ```{r load data}
 source("assets/ma_tests.R")
-load("data/phyloseq/species_adj.RData")
-metadata <- sample_data2(phylo_species_adj)
+load("data/phyloseq/species.RData")
+metadata <- sample_data2(phylo_species)
 ```
 
 ```{r Maaslin2}
@@ -462,10 +432,10 @@ metadata_test <- metadata %>%
                          subject_accession,
                          NA_character_))
 
-for(feature_level in c("genera", "species", "otus")) {
+for(feature_level in c("species")) {
   dir.create(paste0(dir_outputChunk, feature_level, "/"))
-  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
-  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+  load(paste0("data/phyloseq/", feature_level, ".RData"))
+  mat_otu <- get(paste0("phylo_", feature_level)) %>% 
     transform_sample_counts(tss) %>%  
     otu_table2
   
@@ -473,7 +443,7 @@ for(feature_level in c("genera", "species", "otus")) {
   for(test in names(l_tests)) {
     print(test)
     test_param <- l_tests[[test]]
-    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+    result <- fit_metaAnalysis(mat_otu = mat_otu,
                                data = metadata_test %>%
                                  dplyr::filter(!!test_param$exprs_filter),
                                test_variable = test_param$test_variable,
@@ -536,239 +506,101 @@ for(feature_level in c("genera", "species", "otus")) {
                     paste0(dir_outputChunk, feature_level, "/"))
 }
 ```
-# Compare OTU-level and species-level Maaslin2 results
+# Compare Maaslin results before and after adjustment
 ```{r Maaslin2 OTU vs. species}
-dir_outputChunk <- paste0(dir_output, "Maaslin2/species_vs_otus/")
+dir_outputChunk <- paste0(dir_output, "comparison/")
 dir.create(dir_outputChunk)
-l_results_species <- l_results_otus <- list()
 for(test in names(l_tests)) {
-  print(test)
-  test_param <- l_tests[[test]]
-  load(paste0("results/4-association/Maaslin2/species/",
-              test, "/result.RData"))
-  l_results_species[[test]] <- result
-  load(paste0("results/4-association/Maaslin2/otus/",
-              test, "/result.RData"))
-  l_results_otus[[test]] <- result
+  tb_after <- readr::read_tsv(paste0("results/4-association/Maaslin2/species/", 
+                                     test, 
+                                     "/results.tsv")) %>% 
+    dplyr::filter(k >= 2) %>% 
+    dplyr::mutate(q_fdr = p.adjust(pval, "fdr")) %>% 
+    dplyr::filter(q_fdr < 0.05)
+  tb_before <- readr::read_tsv(paste0("results/4-association/sensitivity/Maaslin2/species/", 
+                                      test, 
+                                      "/results.tsv")) %>% 
+    dplyr::filter(k >= 2) %>% 
+    dplyr::mutate(q_fdr = p.adjust(pval, "fdr"))
+  tb_comparison <- tb_after %>% 
+    dplyr::left_join(tb_before, by = "feature", suffix = c("", "_before")) %>% 
+    dplyr::arrange(beta) %>% 
+    dplyr::mutate(feature = factor(feature) %>% forcats::fct_inorder())
+  p_beta <- tb_comparison %>% 
+    dplyr::select(feature, beta, beta_before) %>% 
+    tidyr::gather(key = "adjustment", value = "beta", beta, beta_before) %>% 
+    ggplot(aes(x = feature, y = beta, fill = adjustment)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    coord_flip() +
+    guides(fill = FALSE)
+  p_pval <- tb_comparison %>% 
+    dplyr::select(feature, q_fdr, q_fdr_before) %>% 
+    tidyr::gather(key = "adjustment", value = "q_fdr", q_fdr,q_fdr_before) %>% 
+    ggplot(aes(x = feature, y = -log10(q_fdr), fill = adjustment)) +
+    geom_hline(yintercept = -log10(0.05)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    coord_flip() +
+    guides(fill = FALSE) +
+    no_label_yaxis()
+  p_I2 <- tb_comparison %>% 
+    dplyr::select(feature, I2, I2_before) %>% 
+    tidyr::gather(key = "adjustment", value = "I2", I2, I2_before) %>% 
+    ggplot(aes(x = feature, y = I2, fill = adjustment)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    coord_flip() +
+    no_label_yaxis()
+  p <- cowplot::plot_grid(p_beta, p_pval, p_I2, rel_widths = c(5, 2, 2), nrow = 1)
+  ggsave(file = paste0(dir_outputChunk, test, ".pdf"),
+         p, width = 18, height = max(nrow(tb_after)/5, 5))
 }
-
-tb_species <- l_results_species %>%
-  purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>%
-      dplyr::filter(k >= 2) %>%
-      dplyr::transmute(feature_species = feature,
-                       beta_species = beta,
-                       se_species = se,
-                       pval_species = pval) %>%
-      dplyr::mutate(q.fdr_species = p.adjust(pval_species, method = "fdr")) %>%
-      dplyr::mutate(test = test)
-  })
-tb_otus <- l_results_otus %>%
-  purrr::imap_dfr(function(result, test) {
-    result$tb_summarise %>%
-      dplyr::filter(k >= 2) %>%
-      dplyr::select(feature,
-                    beta,
-                    se,
-                    pval) %>%
-      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>%
-      dplyr::mutate(test = test)
-  }) %>%
-  dplyr::mutate(feature_species = feature %>%
-                  stringr::str_replace_all("\\|\\d+$", "") %>%
-                  paste0("|NA"))
-tb_plot <- tb_otus %>% 
-  dplyr::left_join(tb_species,
-                   by = c("feature_species", "test"))
-list(disease = tests_disease,
-     disease_subtype = tests_diseaseSubtype,
-     treatment = tests_treatment) %>% 
-  purrr::iwalk(function(tests, name_tests) {
-    p <- tb_plot %>%
-      dplyr::filter(test %in% (tests)) %>%
-      dplyr::mutate(test = factor(test, levels = tests)) %>% 
-      dplyr::group_by(feature_species) %>% 
-      dplyr::mutate(q.fdr_min = min(q.fdr)) %>% dplyr::ungroup() %>% 
-      dplyr::filter(q.fdr_min < 0.05) %>% 
-      ggplot(aes(x = feature_species, y = beta)) +
-      geom_boxplot(outlier.shape = NA) +
-      geom_point(aes(color = q.fdr < 0.05), 
-                 position = position_jitter(width = 0.25)) +
-      geom_point(aes(x = feature_species, 
-                     y = beta_species, 
-                     color = q.fdr_species < 0.05),
-                 shape = 17, size = 3) +
-      scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
-      facet_grid(.~test, scales = "free") + coord_flip()
-    ggsave(paste0(dir_outputChunk, name_tests, ".pdf"),
-           p,
-           height = p$data$feature_species %>% 
-             unique %>% length %>% divide_by(4),
-           width = 10 + 4*length(tests),
-           limitsize = FALSE)
-  })
-```
-# Testing for directional change on CD Behavior and UC Extent
-```{r trend test}
-dir_outputChunk <- paste0(dir_output, "Maaslin2/subtype_direction/")
-dir.create(dir_outputChunk)
-source("assets/ma_tests.R")
-
-metadata_test <- metadata %>% 
-  dplyr::mutate(race_fill = fill_na(race),
-                gender_fill = fill_na(gender),
-                age.cat_fill = 
-                  dplyr::case_when(age < 18 ~ "child",
-                                   !is.na(age) ~ "adult",
-                                   TRUE ~ NA_character_) %>% fill_na,
-                study_site = paste(dataset_name, 
-                                   sample_type, 
-                                   sep = "_"),
-                subject_accession_longitudinal =
-                  ifelse(dataset_name %in%
-                           studies_longitudinal,
-                         subject_accession,
-                         NA_character_)) %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::mutate(B.avail = dplyr::n_distinct(B.cat, na.rm = TRUE) == 3,
-                E.avail = dplyr::n_distinct(E.cat, na.rm = TRUE) == 3) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::mutate(B23 = ifelse(B.cat %in% c("B2", "B3"),
-                             1,
-                             0),
-                B3 = ifelse(B.cat == "B3",
-                            1,
-                            0),
-                E23 = ifelse(E.cat %in% c("E2", "E3"),
-                             1,
-                             0),
-                E3 = ifelse(E.cat == "E3",
-                            1,
-                            0))
-
-for(feature_level in "species") {
-  dir.create(paste0(dir_outputChunk, feature_level, "/"))
-  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
-  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
-    transform_sample_counts(tss) %>%  
-    otu_table2
-  
-  l_results <- list()
-  for(test in names(l_tests_subtype)) {
-    print(test)
-    test_param <- l_tests_subtype[[test]]
-    # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
-    #                            data = metadata_test %>%
-    #                              dplyr::filter(!!test_param$exprs_filter),
-    #                            test_variable = test_param$test_variable,
-    #                            contrasts = test_param$contrasts,
-    #                            batch_variable = test_param$batch_variable,
-    #                            covariates = test_param$covariates,
-    #                            covariates.random =
-    #                              test_param$covariates.random,
-    #                            moderator_variables =
-    #                              test_param$moderator_variables,
-    #                            n_features = 50,
-    #                            normalization = "TSS",
-    #                            transform = "AST",
-    #                            analysis_method = "LM",
-    #                            rma_method = "REML",
-    #                            directory = paste0(dir_outputChunk,
-    #                                               feature_level, "/",
-    #                                               test, "/"),
-    #                            forest.plots = TRUE,
-    #                            verbose = FALSE)
-    # save(result, file = paste0(dir_outputChunk, feature_level, "/",
-    #                            test, "/result.RData"))
-    load(paste0(dir_outputChunk, feature_level, "/",
-                test, "/result.RData"))
-    l_results[[test]] <- result
-  }
-  for(test in c("B2_vs_B1", "B3_vs_B1",
-                "E2_vs_E1", "E3_vs_E1")) {
-    print(test)
-    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
-                test, "/result.RData"))
-    l_results[[test]] <- result
-  }
-  
-  plot_metaAnalysis(l_results, c("B2_vs_B1", "B3_vs_B1", "CD Behavior",
-                                 "E2_vs_E1", "E3_vs_E1", "UC Extent"), 
-                    "disease_subtype_direction",
-                    paste0(dir_outputChunk, feature_level, "/"))
+# scatter plots
+pdf(paste0(dir_outputChunk, "comparison_scatters.pdf"),
+    width = 20,
+    height = 5)
+for(test in names(l_tests)) {
+  tb_after <- readr::read_tsv(paste0("results/4-association/Maaslin2/species/", 
+                                     test, 
+                                     "/results.tsv")) %>% 
+    dplyr::filter(k >= 2) %>% 
+    dplyr::mutate(q_fdr = p.adjust(pval, "fdr")) %>% 
+    dplyr::filter(q_fdr < 0.05)
+  if(nrow(tb_after) == 0) next
+  tb_before <- readr::read_tsv(paste0("results/4-association/sensitivity/Maaslin2/species/", 
+                                      test, 
+                                      "/results.tsv")) %>% 
+    dplyr::filter(k >= 2) %>% 
+    dplyr::mutate(q_fdr = p.adjust(pval, "fdr"))
+  tb_comparison <- tb_after %>% 
+    dplyr::left_join(tb_before, by = "feature", suffix = c("", "_before"))
+  p_beta <- tb_comparison %>% 
+    ggplot(aes(x = beta, y = beta_before)) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    geom_hline(yintercept = 0, linetype = "dashed") + 
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    geom_point()
+  p_sd <- tb_comparison %>% 
+    ggplot(aes(x = se, y = se_before)) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    geom_point()
+  p_pval <- tb_comparison %>% 
+    ggplot(aes(x = -log10(pval), y = -log10(pval_before))) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed") + 
+    geom_vline(xintercept = -log10(0.05), linetype = "dashed") +
+    geom_point()
+  p_I2 <- tb_comparison %>% 
+    ggplot(aes(x = I2, y = I2_before)) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    geom_point()
+  p_I2_moderator <- tb_comparison %>% 
+    ggplot(aes(x = I2_moderator, y = I2_moderator_before)) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    geom_point()
+  p <- cowplot::plot_grid(p_beta, p_sd, p_pval, p_I2,
+                          labels = c("beta", "std.err", "-log10 pval", "I2"),
+                          nrow = 1) %>% 
+    cowplot_title(title = test)
+  print(p)
 }
-# direct Maaslin2 tests?
-
-```
-# Effect modification of sample type/disease status?
-```{r Maaslin2 effect modification}
-dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
-dir.create(dir_outputChunk)
-
-df_moderator_site <- metadata_test %>% 
-  dplyr::select(study_site, sample_type) %>% 
-  dplyr::group_by(study_site) %>% 
-  dplyr::summarise_all(function(x) unique(x)) %>% 
-  dplyr::mutate(sample_type = factor(sample_type)) %>% 
-  as.data.frame() %>% tibble::column_to_rownames("study_site") 
-df_moderator_siteDisease <- metadata_test %>% 
-  dplyr::select(study_site_disease, sample_type, disease) %>% 
-  dplyr::filter(disease %in% c("CD", "UC")) %>% 
-  dplyr::group_by(study_site_disease) %>% 
-  dplyr::summarise_all(function(x) unique(x)) %>% 
-  dplyr::mutate(sample_type = factor(sample_type),
-                disease = factor(disease)) %>% 
-  as.data.frame() %>% tibble::column_to_rownames("study_site_disease")
-
-for(feature_level in "species") {
-  dir.create(paste0(dir_outputChunk, feature_level, "/"))
-  l_result_disease <- list()
-  for(test in tests_disease) {
-    print(test)
-    test_param <- l_tests[[test]]
-    
-    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
-                test, "/result.RData"))
-    result_moderator <- fit_rma.mod(l.Maaslin.fit = result$result$ind.results, 
-                                    data.moderator = df_moderator_site,
-                                    method = "REML") %>% 
-      dplyr::mutate(test = test)
-    readr::write_tsv(result_moderator, 
-                     path = paste0(dir_outputChunk, feature_level, "/",
-                                   test, "_moderator_results.tsv"))
-    plot_metaAnalysis_moderator(fit.lm.meta = result$result,
-                                fit.rma.mod = result_moderator,
-                                data.moderator = df_moderator_site,
-                                test = test,
-                                q.cutoff = 0.1,
-                                directory = paste0(dir_outputChunk, feature_level, "/"))
-  }
-  for(test in tests_treatment) {
-    print(test)
-    test_param <- l_tests[[test]]
-    
-    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
-                test, "/result.RData"))
-    result_moderator <- fit_rma.mod(l.Maaslin.fit = result$result$ind.results, 
-                                    data.moderator = df_moderator_siteDisease,
-                                    method = "REML") %>% 
-      dplyr::mutate(test = test)
-    readr::write_tsv(result_moderator, 
-                     path = paste0(dir_outputChunk, feature_level, "/",
-                                   test, "_moderator_results.tsv"))
-    plot_metaAnalysis_moderator(fit.lm.meta = result$result,
-                                fit.rma.mod = result_moderator,
-                                data.moderator = df_moderator_siteDisease,
-                                test = test,
-                                q.cutoff = 0.1,
-                                directory = paste0(dir_outputChunk, feature_level, "/"))
-  }
-}
-```
-
-```{r check metadata}
-results <- metadata_test %>% 
-  dplyr::filter(!is.na(steroids), disease != "control") %>% 
-  dplyr::group_by(study_site_disease) %>% 
-  dplyr::summarise(tabular = list(table(steroids, antibiotics))) 
+dev.off()
 ```

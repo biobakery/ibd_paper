@@ -118,6 +118,19 @@ makeBetterTaxaNames <- function(family, genus, species) {
   )
 }
 
+makeBetterTaxaNamesGenera <- function(family, genus) {
+  # family <- !!family
+  # genus <- !!genus
+  # species <- !!species
+  dplyr::case_when(
+    genus != "g__" ~ genus %>% stringr::str_replace_all(stringr::fixed("g__"), ""),
+    family != "f__" ~ paste0(family %>% 
+                               stringr::str_replace_all(stringr::fixed("f__"), ""),
+                             "(f) unclassified"),
+    TRUE ~ "unclassified at family"
+  )
+}
+
 # This funciton is to aggregate a list of (uniformly prepared) phyloseq objects into
 # one single object
 combine_phyloseq <- function(l_phylo) {
@@ -194,4 +207,15 @@ combine_phyloseq <- function(l_phylo) {
     phyloseq::sample_data(df_metadata_all),
     phyloseq::tax_table(mat_tax_all)
   )
+}
+
+# A function very specific to this project, as it requires pre-recorded library size in the 
+# phyloseq object
+# Transforms count phyloseq object to relative abundance space
+to_relativeAbundance <- function(phylo) {
+  mat_otu <- otu_table2(phylo)
+  mat_otu_ra <- t(t(mat_otu) / sample_data2(phylo)$libSize)
+  dimnames(mat_otu_ra) <- dimnames(mat_otu)
+  phyloseq::otu_table(phylo) <- otu_table(mat_otu_ra, taxa_are_rows = TRUE)
+  return(phylo)
 }

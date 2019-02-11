@@ -41,4 +41,21 @@ tibble::tibble(samples = phyloseq::sample_names(phylo_pipeline),
   geom_abline(slope = 1, intercept = 0, color = "red") +
   geom_point()
 ggsave(paste0(dir_output, "fig_compareLibSize.pdf"), width = 5, height = 5)
+# 
+# for(study in studies) {
+#   print(study)
+#   load("data/phyloseq/" %>% paste0(study, "/otus.RData"))
+# otus_candidate <- rownames(tax_table2(phylo))[tax_table2(phylo)[, "Rank6"] == "g__Dehalobacterium"]
+# otu_table2(phylo) %>% 
+#   apply(2, MMUPHin:::tss) %>% 
+#   apply(1, mean) %>% 
+#   `[`(otus_candidate) %>% 
+#   print()
+# }
+# load("data/phyloseq/CS-PRISM/otus.RData")
+# otus_candidate <- rownames(tax_table2(phylo))[tax_table2(phylo)[, "Rank6"] == "g__Dehalobacterium"]
+# otu_table2(phylo) %>% 
+#   apply(2, MMUPHin:::tss) %>% 
+#   apply(1, mean) %>% 
+  # `[`(otus_candidate)
 ```

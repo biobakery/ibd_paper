@@ -1,0 +1,47 @@
+---
+title: "4.1-association_permanova"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Perform PERMANOVA analysis on covariates.
+- 
+- Maaslin2
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/4.1-permanova/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+# PERMANOVA
+```{r PERMANOVA}
+print(studies)
+dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
+dir.create(dir_outputChunk)
+load("data/phyloseq/genera_adj.RData")
+load("data/distance/dist_genera_adj.RData")
+n_permutations <- 999 # set # permuations for PERMANOVA
+ncores <- 20
+
+test <- fit_permanova_variable(D = dist_genera_adj, 
+                               variable = "mesalamine_5ASA",
+                               variable_class = "sample",
+                               block_covariates = "disease",
+                               block_variable = "subject_accession",
+                               data = metadata,
+                               permutations = n_permutations, 
+                               ncores = 20)
+save(test, file = paste0(dir_output, "test.RData"))
+```
+

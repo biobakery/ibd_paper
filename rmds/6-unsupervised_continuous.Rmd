@@ -1,0 +1,280 @@
+---
+title: "6-unsupervised_continuous"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Simulation study of unsupervised continuous structure discovery
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/6-unsupervised_continuous/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+# load and prepare data
+```{r load and prepare data}
+load(paste0("data/phyloseq/genera_adj.RData"))
+load(paste0("data/phyloseq/species_adj.RData"))
+metadata <- sample_data2(phylo_genera_adj)
+
+metadata <- metadata %>% 
+  dplyr::mutate(study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                study_disease = paste(dataset_name, 
+                                      disease, 
+                                      sep = "_"),
+                study_site_disease = paste(dataset_name, 
+                                           sample_type, 
+                                           disease, sep = "_"))
+metadata %>% dplyr::filter(disease %in% c("CD", "UC"), is_baseline) %>% 
+  dplyr::pull(study_disease) %>% table()
+rownames(metadata) <- metadata$sample_accession_16S
+```
+
+```{r training}
+study_disease_training <- c(
+  "CS-PRISM_stool_CD",
+  "CS-PRISM_stool_UC",
+  "Pouchitis_biopsy_UC",
+  "PROTECT_biopsy_UC",
+  "PROTECT_stool_UC",
+  "RISK_biopsy_CD",
+  "RISK_stool_CD"
+)
+for(feature_level in c("genera", "species")) {
+  phylo <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    to_relativeAbundance()
+  metadata <- metadata[sample_names(phylo), ]
+  sample_data(phylo) <- metadata
+  dir_outputChunk <- paste0(dir_output, feature_level, "/")
+  dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+  
+  phylo_training <- phylo %>% 
+    phyloseq::subset_samples(study_site_disease %in% study_disease_training)
+  for(cor.cutoff in c(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9)) {
+    dir_outputTmp <- paste0(dir_outputChunk, "cor_cutoff_", cor.cutoff, "/")
+    dir.create(dir_outputTmp, recursive = TRUE, showWarnings = TRUE)
+    fit_continuous <- MMUPHin::continuous.discover(feature.count = otu_table2(phylo_training),
+                                                   batch = "study_site_disease",
+                                                   data = sample_data2(phylo_training),
+                                                   normalization = "NONE",
+                                                   transform = "AST",
+                                                   var.perc.cutoff = 0.8,
+                                                   cor.cutoff = cor.cutoff,
+                                                   directory = dir_outputTmp,
+                                                   diagnostics = TRUE,
+                                                   verbose = TRUE)
+    readr::write_tsv(as.data.frame(fit_continuous$consensus.loading) %>% 
+                       tibble::rownames_to_column("feature"),
+                     path = paste0(dir_outputTmp, "avg_loading.tsv"))
+  }
+}
+```
+
+```{r visualize and validate loading}
+for(feature_level in c("genera", "species")) {
+  dir_outputChunk <- paste0(dir_output, feature_level, "/")
+  phylo <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    to_relativeAbundance()
+  metadata <- metadata[sample_names(phylo), ]
+  sample_data(phylo) <- metadata
+  
+  batch <- metadata$study_site_disease
+  lvl.batch <- unique(batch)
+  feature.pca <- asin(sqrt(otu_table2(phylo)))
+  pca.all <- lapply(lvl.batch, function(lvl)
+  {
+    pc <- feature.pca[, batch == lvl]
+    dat.pca <- prcomp(t(pc))
+    return(dat.pca)
+  })
+  data.loadings <- lapply(pca.all, function(x)
+  {
+    loadings <- x$rotation[,1:7]
+    return(loadings)
+  })
+  
+  tb_sampleSize <- metadata %>% 
+    dplyr::group_by(study_site_disease) %>% 
+    dplyr::summarise(n = n())
+  
+  for(cor.cutoff in c(0.5, 0.55, 0.6, 0.65, 0.707, 0.75, 0.8, 0.85, 0.9)) {
+    tb_loading <- paste0(dir_outputChunk, "cor_cutoff_", 
+                         cor.cutoff, "/avg_loading.tsv") %>% 
+      readr::read_tsv() %>% as.data.frame() %>% 
+      tibble::column_to_rownames("feature")
+    n_axes <- min(5, ncol(tb_loading))
+    tb_cor <- data.loadings %>% 
+      purrr::map2_dfr(lvl.batch, function(data_loading, lvl) {
+        abs(t(data_loading) %*% tb_loading[, 1:n_axes, drop = FALSE]) %>% 
+          tibble::as_tibble(rownames = "PC") %>% 
+          dplyr::mutate(batch = lvl)
+      }) %>% 
+      readr::write_tsv(paste0(dir_outputChunk, "cor_cutoff_", 
+                              cor.cutoff, "/validation.tsv"))
+    p_validation <- tb_cor %>% 
+      tidyr::gather(key = Cluster, value = correlation, -PC, -batch) %>% 
+      dplyr::group_by(Cluster, batch) %>% 
+      dplyr::arrange(desc(correlation)) %>% 
+      dplyr::slice(1) %>% dplyr::ungroup() %>% 
+      dplyr::left_join(tb_sampleSize, by = c("batch" = "study_site_disease")) %>% 
+      dplyr::mutate(batch_n = paste0(batch, " (", n, ")")) %>% 
+      ggplot(aes(x = batch_n, y = correlation, 
+                 color = batch %in% study_disease_training,
+                 label = PC)) +
+      geom_point() +
+      ggrepel::geom_text_repel() +
+      facet_grid(Cluster~.) +
+      geom_hline(yintercept = cor.cutoff, color = "red", linetype = "dashed") +
+      scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black"), guide = FALSE) +
+      coord_flip()
+    ggsave(filename = paste0(dir_outputChunk, 
+                             "cor_cutoff_", cor.cutoff, 
+                             "/validation.pdf"),
+           p_validation, 
+           width = 8,
+           height = n_axes*5)
+  }
+}
+```
+
+```{r visualize scores}
+tb_loading <- readr::read_tsv("results/6-unsupervised_continuous/genera/cor_cutoff_0.707/avg_loading.tsv")[, 1:3]
+colnames(tb_loading)[2:3] <- paste0("Cluster_", 1:2)
+
+mat_scores <- t(log(otu_table2(phylo_genera_adj %>% 
+                                       to_relativeAbundance()) + 1)) %*%
+  as.matrix(tb_loading[, c("Cluster_1", "Cluster_2")])
+
+
+tb_loading <- tax_table2(phylo_genera_adj) %>% 
+  as.data.frame %>% 
+  tibble::rownames_to_column("feature") %>% 
+  dplyr::right_join(tb_loading, by = "feature") %>% 
+  dplyr::mutate()
+p1 <- tb_loading %>% 
+  dplyr::filter(Rank5 != "f__") %>%
+  dplyr::mutate(feature_plot = makeBetterTaxaNamesGenera(Rank5, Rank6)) %>% 
+  dplyr::arrange(desc(abs(Cluster_1))) %>% 
+  dplyr::slice(1:20) %>% 
+  dplyr::arrange(Cluster_1) %>% 
+  dplyr::mutate(feature_plot = factor(feature_plot, levels = unique(feature_plot))) %>% 
+  ggplot(aes(x = feature_plot, y = Cluster_1)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+ggsave(filename = paste0(dir_outputChunk, "loadings1.pdf"), p1,
+       width = 6, height = 4)
+p2 <-tb_loading %>% 
+  dplyr::filter(Rank5 != "f__") %>%
+  dplyr::mutate(feature_plot = makeBetterTaxaNamesGenera(Rank5, Rank6)) %>% 
+  dplyr::arrange(desc(abs(Cluster_2))) %>% 
+  dplyr::slice(1:20) %>% 
+  dplyr::arrange(Cluster_2) %>% 
+  dplyr::mutate(feature_plot = factor(feature_plot, levels = unique(feature_plot))) %>% 
+  dplyr::mutate(Phylum = Rank2) %>% 
+  ggplot(aes(x = feature_plot, y = Cluster_2)) +
+  geom_bar(stat = "identity", aes(color = Phylum), fill = "white") +
+  coord_flip()
+ggsave(filename = paste0(dir_outputChunk, "loadings2.pdf"), p2,
+       width = 8, height = 4)
+cowplot::plot_grid(p1, p2, nrow = 1, labels = c("PC1", "PC2")) %>% 
+  ggsave(filename = paste0(dir_outputChunk, "loadings.pdf"), .,
+         width = 20, height = 10)
+all(taxa_names(phylo_training) == tb_loading$feature)
+
+colnames(mat_scores) <- paste0("Score_", 1:2)
+load("data/distance/ordinate_after_genera.RData")
+
+
+
+
+tmp <- phylo_genera_adj %>% 
+  transform_sample_counts(tss) %>% 
+  phyloseq_to_tb %>% 
+  dplyr::filter(Rank2 %in% c("p__Firmicutes", "p__Bacteroides"))
+
+metadata_scores <- sample_data2(phylo_genera_adj) %>% 
+  cbind(mat_scores) %>% 
+  cbind(ordinate_after_genera$vectors[, 1:4]) %>% 
+  dplyr::mutate(dataset_baseline = dplyr::case_when(
+    !(dataset_name %in% c("PROTECT", "Herfarth_CCFA_Microbiome_3B_combined", "LSS-PRISM", 
+                          "Jansson_Lamendella_Crohns", "HMP2")) ~ dataset_name,
+    is_baseline ~ paste0(dataset_name, " (baseline)"),
+    TRUE ~ paste0(dataset_name, " (follow-up)")
+  ))
+
+
+p_density <- metadata_scores %>% 
+  dplyr::mutate(Disease = dplyr::case_when(
+    disease == "CD" ~ "CD",
+    disease == "UC" ~ "UC",
+    control == "nonIBD" ~ "Non-IBD control",
+    TRUE ~ "Healthy control"
+  ) %>% factor(levels = c("CD", "UC","Non-IBD control", "Healthy control"))) %>% 
+  ggplot(aes(x = Score_1)) +
+  scale_fill_manual(values = c(gg_color_hue(c("CD", "UC","Non-IBD control")), 
+                               c("Healthy control"="grey"))) +
+  scale_color_manual(values = c(gg_color_hue(c("CD", "UC","Non-IBD control")), 
+                                c("Healthy control"="grey"))) +
+  geom_density(aes(fill = Disease, color = Disease), alpha = 0.2) +
+  facet_wrap(~dataset_baseline, nrow = 3)
+ggsave("results/6-unsupervised_continuous/genera/density.pdf",
+       p_density,
+       width = 6, height = 4)
+ggsave("results/6-unsupervised_continuous/genera/density_perStudy.pdf",
+       p_density,
+       width = 15, height = 9)
+
+ggsave("results/6-unsupervised_continuous/genera/density.pdf", width = 12, height = 10)
+metadata_scores %>% 
+  dplyr::mutate(Disease = dplyr::case_when(
+    disease == "CD" ~ "CD",
+    disease == "UC" ~ "UC",
+    control == "nonIBD" ~ "Non-IBD control",
+    TRUE ~ "Healthy control"
+  ) %>% factor(levels = c("CD", "UC","Non-IBD control", "Healthy control"))) %>% 
+  ggplot(aes(x = Axis.1, y = Axis.2, color = Score_1)) +
+  geom_point() +
+  facet_grid(.~Disease) +
+  scale_color_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0)
+ggsave("results/6-unsupervised_continuous/genera/Score1.pdf", width = 13, height = 3)
+metadata_scores %>% 
+  dplyr::mutate(Disease = dplyr::case_when(
+    disease == "CD" ~ "CD",
+    disease == "UC" ~ "UC",
+    control == "nonIBD" ~ "Non-IBD control",
+    TRUE ~ "Healthy control"
+  ) %>% factor(levels = c("CD", "UC","Non-IBD control", "Healthy control"))) %>% 
+  ggplot(aes(x = Axis.1, y = Axis.2, color = Score_2)) +
+  geom_point() +
+  facet_grid(.~Disease) +
+  scale_color_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0)
+ggsave("results/6-unsupervised_continuous/genera/Score2.pdf", width = 13, height = 3)
+
+tb_loadings <- readr::read_tsv("results/6-unsupervised_continuous/genera/cor_cutoff_0.55/avg_loading.tsv")
+
+metadata_scores %>% 
+  ggplot(aes(x = sample_type, y = Score_2)) +
+  geom_boxplot() +
+  facet_wrap(~dataset_name)
+
+load("data/distance/ordinate_after_genera.RData")
+metadata_scores %>% 
+  cbind(ordinate_after_genera$vectors[, 1:4]) %>% 
+  ggplot(aes(x = b, y = Axis.2, color = Score_2)) +
+  geom_point() +
+  facet_wrap(~dataset_name)
+```
+
