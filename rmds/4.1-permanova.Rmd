@@ -8,8 +8,6 @@ df_print: paged
 ---
 # Overview
 Perform PERMANOVA analysis on covariates.
-- 
-- Maaslin2
 
 ```{r setup, echo = FALSE}                                           
 knitr::opts_knit$set(root.dir = normalizePath(".."))
@@ -34,12 +32,24 @@ load("data/distance/dist_genera_adj.RData")
 n_permutations <- 999 # set # permuations for PERMANOVA
 ncores <- 20
 
+metadata <- sample_data2(phylo_genera_adj)
+metadata_test <- metadata %>% 
+  dplyr::mutate(age.cat = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_),
+                age_at_diagnosis.cat = 
+                  dplyr::case_when(age_at_diagnosis < 18 ~ "A1",
+                                   age_at_diagnosis < 40 ~ "A2",
+                                   !is.na(age_at_diagnosis) ~ "A3",
+                                   TRUE ~ NA_character_))
+
 test <- fit_permanova_variable(D = dist_genera_adj, 
                                variable = "mesalamine_5ASA",
                                variable_class = "sample",
                                block_covariates = "disease",
                                block_variable = "subject_accession",
-                               data = metadata,
+                               data = metadata_test,
                                permutations = n_permutations, 
                                ncores = 20)
 save(test, file = paste0(dir_output, "test.RData"))
