@@ -49,7 +49,7 @@ for(variable in c("race",
                   "age.cat",
                   "age_at_diagnosis.cat")) {
   test <- fit_permanova_variable(D = dist_genera_adj, 
-                               variable = variabe,
+                               variable = variable,
                                variable_class = "subject",
                                block_covariates = NULL,
                                block_variable = "subject_accession",
