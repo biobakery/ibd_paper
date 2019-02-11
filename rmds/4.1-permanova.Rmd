@@ -29,8 +29,8 @@ dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
 dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
 load("data/distance/dist_genera_adj.RData")
-n_permutations <- 20 # set # permuations for PERMANOVA
-ncores <- 20
+n_permutations <- 5 # set # permuations for PERMANOVA
+ncores <- 5
 
 metadata <- sample_data2(phylo_genera_adj)
 metadata_test <- metadata %>% 
@@ -59,7 +59,7 @@ metadata_test <- metadata %>%
 #   assign(paste0("fit_adonis_", variable),
 #          test)
 #   save(list = paste0("fit_adonis_", variable),
-#        file = paste0(dir_output, variable, ".RData"))
+#        file = paste0(dir_output, "fit_adonis_", variable, ".RData"))
 #   rm(list = c("test", paste0("fit_adonis_", variable)))
 # }
 
@@ -80,40 +80,61 @@ metadata_test <- metadata %>%
 #   assign(paste0("fit_adonis_", variable),
 #          test)
 #   save(list = paste0("fit_adonis_", variable),
-#        file = paste0(dir_output, variable, ".RData"))
+#        file = paste0(dir_output, "fit_adonis_", variable, ".RData"))
 #   rm(list = c("test", paste0("fit_adonis_", variable)))
 # }
 
-fit_adonis_disease <-
-  fit_permanova_variable(D = dist_genera_adj, 
-                         variable = "disease",
-                         variable_class = "subject",
-                         covariates = "sample_type",
-                         block_covariates = NULL,
-                         block_variable = "subject_accession",
-                         data = metadata_test,
-                         permutations = n_permutations, 
-                         ncores = ncores)
-save(fit_adonis_disease, file = paste0(dir_output, "fit_adonis_disease.RData"))
-rm(fit_adonis_disease)
+# fit_adonis_disease <-
+#   fit_permanova_variable(D = dist_genera_adj, 
+#                          variable = "disease",
+#                          variable_class = "subject",
+#                          covariates = NULL,
+#                          block_covariates = NULL,
+#                          block_variable = "subject_accession",
+#                          data = metadata_test,
+#                          permutations = n_permutations, 
+#                          ncores = ncores)
+# save(fit_adonis_disease, file = paste0(dir_output, "fit_adonis_disease.RData"))
+# rm(fit_adonis_disease)
+# 
+# fit_adonis_bodySite <-
+#      fit_permanova_variable(D = dist_genera_adj, 
+#                          variable = "body_site",
+#                          variable_class = "sample",
+#                          covariates = "sample_type",
+#                          block_covariates = NULL,
+#                          block_variable = "subject_accession",
+#                          data = metadata_test,
+#                          permutations = n_permutations, 
+#                          ncores = ncores)
+# save(fit_adonis_bodySite, file = paste0(dir_output, "fit_adonis_bodySite.RData"))
+# rm(fit_adonis_bodySite)
 
-fit_adonis_bodySite <-
+fit_adonis_subject <-
      fit_permanova_variable(D = dist_genera_adj, 
-                         variable = "body_site",
-                         variable_class = "sample",
-                         covariates = "sample_type",
+                         variable = "subject_accession",
+                         variable_class = "subject",
+                         covariates = NULL,
+                         block_covariates = "dataset_name",
+                         block_variable = "subject_accession",
+                         data = metadata_test,
+                         permutations = n_permutations, 
+                         ncores = ncores)
+save(fit_adonis_subject, file = paste0(dir_output, "fit_adonis_subject.RData"))
+rm(fit_adonis_subject)
+
+load("data/distance/dist_genera_adj.RData")
+fit_study_before <-
+     fit_permanova_variable(D = dist_genera, 
+                         variable = "dataset_name",
+                         variable_class = "subject",
+                         covariates = NULL,
                          block_covariates = NULL,
                          block_variable = "subject_accession",
                          data = metadata_test,
                          permutations = n_permutations, 
                          ncores = ncores)
-save(fit_adonis_bodySite, file = paste0(dir_output, "fit_adonis_bodySite.RData"))
-rm(fit_adonis_bodySite)
-
-# load(paste0(dir_outputChunk, "fit_adonis_bodySite.RData"))
-# fit_adonis_subject <-
-#   vegan::adonis(dist_genera_adj~dataset_name + subject_accession,
-#                 data = metadata_test, permutations = n_permutations)
-# save(fit_adonis_subject, file = paste0(dir_outputChunk, "fit_adonis_subject.RData"))
+save(fit_study_before, file = paste0(dir_output, "fit_study_before.RData"))
+rm(fit_study_before)
 ```
 

@@ -229,21 +229,22 @@ fit_permanova_variable <- function(
     permute_within <- cbind(permute_within, data[, c(variable_na, variable), drop = FALSE])
   
   blocks <- data[, block_variable, drop = TRUE]
-  block_data <- data[, c(block_variable, block_covariates), drop = FALSE]
+  block_data <- data.frame(rows = blocks)
+  block_data <- cbind(block_data, data[, block_covariates, drop = FALSE])
   if(variable_class == "subject")
     block_data <- cbind(block_data, data[, c(variable_na, variable), drop = FALSE])
   
   # make sure that all variables in block data are indeed block specific
   block_data <- 
     block_data %>%
-    dplyr::group_by_at(block_variable) %>% 
+    dplyr::group_by(rows) %>% 
     dplyr::distinct()
   test_block_data <- block_data %>% 
     dplyr::summarise(n_distinct = n()) 
   if(!all(test_block_data$n_distinct == 1)) 
     stop("Block variables aren't unique!")
   block_data <- as.data.frame(dplyr::ungroup(block_data))
-  rownames(block_data) <- block_data[, block_variable]
+  rownames(block_data) <- block_data$rows
   
   metadata_order = c(block_covariates, covariates, variable_na, variable)
   fit_adonis <- PERMANOVA_repeat_measures(D = D,
