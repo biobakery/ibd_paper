@@ -224,7 +224,7 @@ fit_permanova_variable <- function(
   
   permute_within <- data.frame(rows = 1:nrow(data)) # this one has to be there no matter what
   rownames(permute_within) <- rownames(metadata)
-  permutate_within <- cbind(permutate_within, data[, covariates, drop = FALSE])
+  permute_within <- cbind(permute_within, data[, covariates, drop = FALSE])
   if(variable_class == "sample")
     permute_within <- cbind(permute_within, data[, c(variable_na, variable), drop = FALSE])
   
