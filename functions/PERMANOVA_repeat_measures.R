@@ -199,18 +199,19 @@ fit_permanova_variable <- function(
   D,
   variable, # variable to test for R2
   variable_class, # is this a per-sample or per-subject variable?
+  covariates = NULL,
   block_covariates = NULL, # additional covariates (subject specific) to test (come before variable in the model)
   block_variable,
   data,
   permutations = 999,
   ncores = NULL
 ) {
-  if(!all(c(variable, block_covariates, block_variable) %in% names(data)))
+  if(!all(c(variable, covariates, block_covariates, block_variable) %in% names(data)))
     stop("variable and/or block_covariates and/or  block_variable not present in data!")
   if(!(variable_class %in% c("sample", "subject")))
     stop("variable_class must be either sample or subject!")
 
-  if(any(is.na(data[, c(block_variable, block_covariates)])))
+  if(any(is.na(data[, c(block_variable, block_covariates, covariates), drop = FALSE])))
     stop("Cannot have missing values in block_covariates or block variable!")
   
   # Fill in is_na indicator if variable has any missing values
@@ -223,6 +224,7 @@ fit_permanova_variable <- function(
   
   permute_within <- data.frame(rows = 1:nrow(data)) # this one has to be there no matter what
   rownames(permute_within) <- rownames(metadata)
+  permutate_within <- cbind(permutate_within, data[, covariates, drop = FALSE])
   if(variable_class == "sample")
     permute_within <- cbind(permute_within, data[, c(variable_na, variable), drop = FALSE])
   
@@ -243,7 +245,7 @@ fit_permanova_variable <- function(
   block_data <- as.data.frame(dplyr::ungroup(block_data))
   rownames(block_data) <- block_data[, block_variable]
   
-  metadata_order = c(block_covariates, variable_na, variable)
+  metadata_order = c(block_covariates, covariates, variable_na, variable)
   fit_adonis <- PERMANOVA_repeat_measures(D = D,
                             permute_within = permute_within,
                             blocks = blocks,
@@ -251,4 +253,6 @@ fit_permanova_variable <- function(
                             permutations = permutations,
                             metadata_order = metadata_order,
                             ncores = ncores, na.rm = FALSE)
+  
+  return(fit_adonis)
 }
