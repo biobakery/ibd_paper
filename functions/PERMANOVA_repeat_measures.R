@@ -223,7 +223,7 @@ fit_permanova_variable <- function(
   }
   
   permute_within <- data.frame(rows_sample = 1:nrow(data)) # this one has to be there no matter what
-  rownames(permute_within) <- rownames(metadata)
+  rownames(permute_within) <- rownames(data)
   permute_within <- cbind(permute_within, data[, covariates, drop = FALSE])
   if(variable_class == "sample")
     permute_within <- cbind(permute_within, data[, c(variable_na, variable), drop = FALSE])
@@ -247,7 +247,10 @@ fit_permanova_variable <- function(
     block_data <- as.data.frame(dplyr::ungroup(block_data))
     rownames(block_data) <- block_data$rows_subject
   }
-  if(is.null(block_variabe)) block_data <- NULL
+  if(is.null(block_variable)) {
+    blocks <- NULL
+    block_data <- NULL
+  } 
   
   metadata_order <- c(block_covariates, covariates, variable_na, variable)
   fit_adonis <- PERMANOVA_repeat_measures(D = D,

@@ -124,6 +124,13 @@ for(feature_level in c("genera", "species")) {
   otu_table(phylo_adj) <- otu_table(mat_otu_adj, taxa_are_rows = TRUE)
   assign(paste0("phylo_", feature_level, "_adj"), value = phylo_adj)
   
+  distance_after_batch <- phylo_adj %>%
+    to_relativeAbundance() %>%
+    phyloseq::distance(method = "bray")
+  assign(paste0("dist_", feature_level, "_after_batch"), distance_after_batch)
+  save(list = paste0("dist_", feature_level, "_after_batch"),
+       file = paste0("data/distance/", "dist_", feature_level, "_after_batch.RData"))
+  
   # Overall before vs. after for batch adjustment
   tb_adjBatch <- l_fit_adonis %>% 
     purrr::imap_dfr(function(i_list, study) {
