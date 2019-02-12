@@ -29,6 +29,7 @@ dir_outputChunk <- paste0(dir_output, "PERMANOVA/")
 dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
 load("data/distance/dist_genera_adj.RData")
+load("data/distance/dist_genera.RData")
 n_permutations <- 3 # set # permuations for PERMANOVA
 ncores <- 3
 
@@ -111,7 +112,6 @@ metadata_test <- metadata %>%
 # save(fit_adonis_bodySite, file = paste0(dir_output, "fit_adonis_bodySite.RData"))
 # rm(fit_adonis_bodySite)
 # 
-# load("data/distance/dist_genera.RData")
 # fit_adonis_study_before <-
 #   fit_permanova_variable(D = dist_genera, 
 #                          variable = "dataset_name",
