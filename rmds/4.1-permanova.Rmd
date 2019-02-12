@@ -153,7 +153,7 @@ for(study in studies) {
                     "gender",
                     "age.cat",
                     "age_at_diagnosis.cat")) {
-    if(all(is_na(metadata_test_tmp[, variable])) |
+    if(all(is.na(metadata_test_tmp[, variable])) |
        metadata_test_tmp[, variable] %>% setdiff(NA) %>% 
        length %>% unique %>% is_less_than(2)) {
       test <- NULL
@@ -185,7 +185,7 @@ for(study in studies) {
                     "immunosuppressants",
                     "steroids",
                     "mesalamine_5ASA")) {
-    if(all(is_na(metadata_test_tmp[, variable])) |
+    if(all(is.na(metadata_test_tmp[, variable])) |
        metadata_test_tmp[, variable] %>% setdiff(NA) %>% 
        length %>% unique %>% is_less_than(2)) {
       test <- NULL
