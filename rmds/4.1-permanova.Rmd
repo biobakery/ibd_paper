@@ -145,9 +145,9 @@ for(study in studies) {
   dir.create(paste0(dir_output, study, "/"), recursive = TRUE, showWarnings = TRUE)
   metadata_test_tmp <- subset(metadata_test, dataset_name == study)
   dist_genera_adj_tmp <- subset_distance(dist_genera_adj,
-                                         metadata_test_tmp$dataset_name == study)
+                                         metadata_test$dataset_name == study)
   dist_genera_tmp <- subset_distance(dist_genera,
-                                     metadata_test_tmp$dataset_name == study)
+                                     metadata_test$dataset_name == study)
   
   for(variable in c("race",
                     "gender",
