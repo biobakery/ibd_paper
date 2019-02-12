@@ -30,8 +30,8 @@ dir.create(dir_outputChunk)
 load("data/phyloseq/genera_adj.RData")
 load("data/distance/dist_genera_adj.RData")
 load("data/distance/dist_genera.RData")
-n_permutations <- 3 # set # permuations for PERMANOVA
-ncores <- 3
+n_permutations <- 1999 # set # permuations for PERMANOVA
+ncores <- 20
 
 metadata <- sample_data2(phylo_genera_adj)
 metadata_test <- metadata %>% 
