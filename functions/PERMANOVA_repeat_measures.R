@@ -20,7 +20,7 @@
 #' metadata in \code{block_data} are first permuted across blocks, and then
 #' assigned to samples according to the block structure.
 PERMANOVA_repeat_measures <- function(
-  D, permute_within, blocks = NULL, block_data, permutations=999,
+  D, permute_within, blocks = NULL, block_data = NULL, permutations=999,
   metadata_order = c(names(permute_within), names(block_data)),
   ncores=NULL,
   na.rm=F) {
@@ -31,7 +31,7 @@ PERMANOVA_repeat_measures <- function(
   }
   
   # Default to free permutations if blocks is not given
-  if (!missing(block_data) && is.null(blocks)) {
+  if (!is.null(block_data) && is.null(blocks)) {
     stop("blocks must be given if block_data is present")
   } else if (is.null(blocks)) {
     blocks <- rep(1, nrow(permute_within))
@@ -210,7 +210,7 @@ fit_permanova_variable <- function(
     stop("variable and/or block_covariates and/or  block_variable not present in data!")
   if(!(variable_class %in% c("sample", "subject")))
     stop("variable_class must be either sample or subject!")
-
+  
   if(any(is.na(data[, c(block_variable, block_covariates, covariates), drop = FALSE])))
     stop("Cannot have missing values in block_covariates or block variable!")
   
@@ -228,32 +228,35 @@ fit_permanova_variable <- function(
   if(variable_class == "sample")
     permute_within <- cbind(permute_within, data[, c(variable_na, variable), drop = FALSE])
   
-  blocks <- data[, block_variable, drop = TRUE]
-  block_data <- data.frame(rows_subject = blocks)
-  block_data <- cbind(block_data, data[, block_covariates, drop = FALSE])
-  if(variable_class == "subject")
-    block_data <- cbind(block_data, data[, c(variable_na, variable), drop = FALSE])
+  if(!is.null(block_variable)) {
+    blocks <- data[, block_variable, drop = TRUE]
+    block_data <- data.frame(rows_subject = blocks)
+    block_data <- cbind(block_data, data[, block_covariates, drop = FALSE])
+    if(variable_class == "subject")
+      block_data <- cbind(block_data, data[, c(variable_na, variable), drop = FALSE])
+    
+    # make sure that all variables in block data are indeed block specific
+    block_data <- 
+      block_data %>%
+      dplyr::group_by(rows_subject) %>% 
+      dplyr::distinct()
+    test_block_data <- block_data %>% 
+      dplyr::summarise(n_distinct = n()) 
+    if(!all(test_block_data$n_distinct == 1)) 
+      stop("Block variables aren't unique!")
+    block_data <- as.data.frame(dplyr::ungroup(block_data))
+    rownames(block_data) <- block_data$rows_subject
+  }
+  if(is.null(block_variabe)) block_data <- NULL
   
-  # make sure that all variables in block data are indeed block specific
-  block_data <- 
-    block_data %>%
-    dplyr::group_by(rows_subject) %>% 
-    dplyr::distinct()
-  test_block_data <- block_data %>% 
-    dplyr::summarise(n_distinct = n()) 
-  if(!all(test_block_data$n_distinct == 1)) 
-    stop("Block variables aren't unique!")
-  block_data <- as.data.frame(dplyr::ungroup(block_data))
-  rownames(block_data) <- block_data$rows_subject
-  
-  metadata_order = c(block_covariates, covariates, variable_na, variable)
+  metadata_order <- c(block_covariates, covariates, variable_na, variable)
   fit_adonis <- PERMANOVA_repeat_measures(D = D,
-                            permute_within = permute_within,
-                            blocks = blocks,
-                            block_data = block_data,
-                            permutations = permutations,
-                            metadata_order = metadata_order,
-                            ncores = ncores, na.rm = FALSE)
+                                          permute_within = permute_within,
+                                          blocks = blocks,
+                                          block_data = block_data,
+                                          permutations = permutations,
+                                          metadata_order = metadata_order,
+                                          ncores = ncores, na.rm = FALSE)
   
   return(fit_adonis)
 }
