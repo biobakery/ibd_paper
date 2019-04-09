@@ -53,6 +53,30 @@ phyloseq_to_tb <- function(phylo) {
     )
 }
 
+phyloseq_to_tb_noTax <- function(phylo) {
+  mat_otu <- otu_table2(phylo)
+  df_metadata <- sample_data2(phylo)
+  # No conflicting column names between metadata, tax table, 
+  # and "featuer", "rownames", and "abundance"
+  check_commonNames <- c(
+    intersect(c("feature", "rownames", "abundance"), colnames(df_metadata)) %>% 
+      length() %>% is_greater_than(1)
+  )
+  if(any(check_commonNames))
+    stop("There are overlapping column names, cannot proceed!")
+  
+  t(mat_otu) %>% 
+    tibble::as_tibble(rownames = "rownames") %>% 
+    tidyr::gather(key = feature,
+                  value = abundance,
+                  - rownames) %>% 
+    dplyr::left_join(
+      df_metadata %>% 
+        tibble::as_tibble(rownames = "rownames"),
+      by = "rownames"
+    )
+}
+
 # This function is to trim the phyloseq object so that won't run into empty taxa/samples
 # which is prone to happenning whenever a phyloseq object is subsetted in any way!
 prune_taxaSamples <- function(phylo, 
