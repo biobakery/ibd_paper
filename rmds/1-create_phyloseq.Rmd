@@ -54,7 +54,8 @@ for(study in studies) {
                      "processed/",
                      study,
                      "/metadata/metadata.txt") %>%
-    readr::read_tsv(col_types = column_setup)
+    readr::read_tsv(col_types = column_setup) %>% 
+    dplyr::filter(disease %in% c("CD", "UC", "control"))
   
   sample_common <- intersect(metadata$sample_accession_16S,
                              phyloseq::sample_names(biom))
