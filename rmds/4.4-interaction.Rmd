@@ -1,0 +1,262 @@
+---
+title: "4-association"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Perform association analysis on covariates.
+- PERMANOVA
+- Maaslin2
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/4-association/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+
+# Maaslin2
+```{r load data}
+source("assets/ma_tests.R")
+load("data/phyloseq/species_adj.RData")
+metadata <- sample_data2(phylo_species_adj)
+```
+
+# Effect modification of sample type/disease status?
+```{r Maaslin2 effect modification}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/effect_modification/")
+dir.create(dir_outputChunk)
+
+metadata_test <- metadata %>% 
+  dplyr::mutate(race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                study_site_disease = paste(dataset_name, 
+                                           sample_type, 
+                                           disease, sep = "_"),
+                subject_accession_longitudinal =
+                  ifelse(dataset_name %in%
+                           studies_longitudinal,
+                         subject_accession,
+                         NA_character_)) 
+
+df_moderator_site <- metadata_test %>% 
+  dplyr::select(study_site, sample_type) %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::summarise_all(function(x) unique(x)) %>% 
+  dplyr::mutate(sample_type = factor(sample_type)) %>% 
+  as.data.frame() %>% tibble::column_to_rownames("study_site") 
+df_moderator_siteDisease <- metadata_test %>% 
+  dplyr::select(study_site_disease, sample_type, disease) %>% 
+  dplyr::filter(disease %in% c("CD", "UC")) %>% 
+  dplyr::group_by(study_site_disease) %>% 
+  dplyr::summarise_all(function(x) unique(x)) %>% 
+  dplyr::mutate(sample_type = factor(sample_type),
+                disease = factor(disease)) %>% 
+  as.data.frame() %>% tibble::column_to_rownames("study_site_disease")
+
+for(feature_level in "species") {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  l_result_disease <- list()
+  for(test in tests_disease) {
+    print(test)
+    test_param <- l_tests[[test]]
+    
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    result_moderator <- fit_rma.mod(l.Maaslin.fit = result$result$ind.results, 
+                                    data.moderator = df_moderator_site,
+                                    method = "REML") %>% 
+      dplyr::mutate(test = test)
+    readr::write_tsv(result_moderator, 
+                     path = paste0(dir_outputChunk, feature_level, "/",
+                                   test, "_moderator_results.tsv"))
+    plot_metaAnalysis_moderator(fit.lm.meta = result$result,
+                                fit.rma.mod = result_moderator,
+                                data.moderator = df_moderator_site,
+                                test = test,
+                                q.cutoff = 0.1,
+                                directory = paste0(dir_outputChunk, feature_level, "/"))
+  }
+  for(test in tests_treatment) {
+    print(test)
+    test_param <- l_tests[[test]]
+    
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    result_moderator <- fit_rma.mod(l.Maaslin.fit = result$result$ind.results, 
+                                    data.moderator = df_moderator_siteDisease,
+                                    method = "REML") %>% 
+      dplyr::mutate(test = test)
+    readr::write_tsv(result_moderator, 
+                     path = paste0(dir_outputChunk, feature_level, "/",
+                                   test, "_moderator_results.tsv"))
+    plot_metaAnalysis_moderator(fit.lm.meta = result$result,
+                                fit.rma.mod = result_moderator,
+                                data.moderator = df_moderator_siteDisease,
+                                test = test,
+                                q.cutoff = 0.1,
+                                directory = paste0(dir_outputChunk, feature_level, "/"))
+  }
+}
+
+tb_long <- phylo_species_adj %>% 
+  phyloseq::transform_sample_counts(MMUPHin:::tss) %>% 
+  phyloseq_to_tb() %>% 
+  dplyr::mutate(study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                study_site_disease = paste(dataset_name, 
+                                           sample_type, 
+                                           disease, sep = "_"))
+  
+for(feature_level in "species") {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  l_result_disease <- list()
+  for(test in tests_disease) {
+    print(test)
+    test_param <- l_tests[[test]]
+    
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    result_moderator <- readr::read_tsv(paste0(dir_outputChunk, feature_level, "/",
+                                   test, "_moderator_results.tsv"))
+    
+    tb_plot_pval <- result_moderator %>% 
+      dplyr::filter(moderator_level %in% c("stool", "biopsy")) %>% 
+      dplyr::select(pval, feature, moderator_level) %>% 
+      tidyr::spread(key = moderator_level, value = pval,
+                    sep = "_pval_") 
+    p_pval <- tb_plot_pval %>% 
+      ggplot(aes(x = -log10(moderator_level_pval_biopsy),
+                 y = -log10(moderator_level_pval_stool))) +
+      geom_hline(yintercept = -log10(0.05)) +
+      geom_vline(xintercept = -log10(0.05)) +
+      geom_point() +
+      coord_fixed()
+    
+    tb_plot_box <- result_moderator %>% 
+      dplyr::filter(pval < 0.05,
+                    moderator == "sample_type",
+                    moderator_level == "difference") %>% 
+      dplyr::left_join(tb_long, by = "feature") %>% 
+      dplyr::filter(!!test_param$exprs_filter) %>% 
+      dplyr::filter(study_site %in% names(result$result$ind.results)) %>% 
+      dplyr::mutate(test_variable = !!sym(test_param$test_variable) %>% 
+                      dplyr::recode(!!!test_param$contrasts,
+                                    .missing = NA_character_)) %>% 
+      dplyr::arrange(sample_type) %>% 
+      dplyr::mutate(study_site = factor(study_site, 
+                                        levels = unique(study_site)))
+    l_p_box <- unique(tb_plot_box$feature) %>% 
+      purrr::map(function(i_feature) {
+        tb_plot_box %>% 
+          dplyr::filter(feature == i_feature) %>% 
+          ggplot(aes(x = study_site, y = abundance, 
+                     color = as.factor(test_variable))) +
+          geom_boxplot() +
+          labs(colour=test) +
+          rotate_xaxis(angle = 45) +
+          ggtitle(i_feature)
+      })
+    
+    ggsave(filename = paste0(dir_outputChunk, feature_level, "/",
+                         test, "_pval_comparison.pdf"),
+           p_pval,
+           width = 8, height = 8)
+    pdf(paste0(dir_outputChunk, feature_level, "/",
+               test, "_boxplots.pdf"),
+        width = 10, height = 10, onefile = TRUE)
+    for(i in 1:length(l_p_box))
+      print(l_p_box[[i]])
+    dev.off()
+  }
+  for(test in tests_treatment) {
+    print(test)
+    test_param <- l_tests[[test]]
+    
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    result_moderator <- readr::read_tsv(paste0(dir_outputChunk, feature_level, "/",
+                                   test, "_moderator_results.tsv")) %>% 
+      dplyr::mutate(pval = as.numeric(pval))
+    
+    tb_plot_pval <- result_moderator %>% 
+      dplyr::filter(moderator_level %in% c("stool", "biopsy")) %>% 
+      dplyr::select(pval, feature, moderator_level) %>% 
+      tidyr::spread(key = moderator_level, value = pval,
+                    sep = "_pval_") 
+    p_pval <- tb_plot_pval %>% 
+      ggplot(aes(x = -log10(moderator_level_pval_biopsy),
+                 y = -log10(moderator_level_pval_stool))) +
+      geom_hline(yintercept = -log10(0.05)) +
+      geom_vline(xintercept = -log10(0.05)) +
+      geom_point() +
+      coord_fixed()
+    
+    tb_plot_box <- result_moderator %>% 
+      dplyr::filter(pval < 0.05,
+                    moderator == "sample_type",
+                    moderator_level == "difference") %>% 
+      dplyr::left_join(tb_long, by = "feature") %>% 
+      dplyr::filter(!!test_param$exprs_filter) %>% 
+      dplyr::filter(study_site_disease %in% names(result$result$ind.results)) %>% 
+      dplyr::mutate(test_variable = !!sym(test_param$test_variable) %>% 
+                      dplyr::recode(!!!test_param$contrasts,
+                                    .missing = NA_character_)) %>% 
+      dplyr::arrange(sample_type) %>% 
+      dplyr::mutate(study_site_disease = factor(study_site_disease, 
+                                        levels = unique(study_site_disease)))
+
+    l_p_box <- unique(tb_plot_box$feature) %>% 
+      purrr::map(function(i_feature) {
+        tb_plot_box %>% 
+          dplyr::filter(feature == i_feature) %>% 
+          ggplot(aes(x = study_site_disease, y = abundance, 
+                     color = as.factor(test_variable))) +
+          geom_boxplot() +
+          labs(colour=test) +
+          rotate_xaxis(angle = 45) +
+          ggtitle(i_feature)
+      })
+    
+    ggsave(filename = paste0(dir_outputChunk, feature_level, "/",
+                         test, "_pval_comparison.pdf"),
+           p_pval,
+           width = 8, height = 8)
+    if(length(l_p_box) > 0) {
+      pdf(paste0(dir_outputChunk, feature_level, "/",
+               test, "_boxplots.pdf"),
+        width = 10, height = 10, onefile = TRUE)
+    for(i in 1:length(l_p_box))
+      print(l_p_box[[i]])
+    dev.off()
+    }
+    
+  }
+}
+# sanity check that results make sense
+```
+
+```{r check metadata}
+results <- metadata_test %>% 
+  dplyr::filter(!is.na(steroids), disease != "control") %>% 
+  dplyr::group_by(study_site_disease) %>% 
+  dplyr::summarise(tabular = list(table(steroids, antibiotics))) 
+```

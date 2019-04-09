@@ -1,0 +1,117 @@
+---
+title: "4-association"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Perform association analysis on covariates.
+- PERMANOVA
+- Maaslin2
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/4-association/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+```
+# Testing for directional change on CD Behavior and UC Extent
+```{r trend test}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/subtype_direction/")
+dir.create(dir_outputChunk)
+source("assets/ma_tests.R")
+
+metadata_test <- metadata %>% 
+  dplyr::mutate(race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                subject_accession_longitudinal =
+                  ifelse(dataset_name %in%
+                           studies_longitudinal,
+                         subject_accession,
+                         NA_character_)) %>% 
+  dplyr::group_by(study_site) %>% 
+  dplyr::mutate(B.avail = dplyr::n_distinct(B.cat, na.rm = TRUE) == 3,
+                E.avail = dplyr::n_distinct(E.cat, na.rm = TRUE) == 3) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(B23 = ifelse(B.cat %in% c("B2", "B3"),
+                             1,
+                             0),
+                B3 = ifelse(B.cat == "B3",
+                            1,
+                            0),
+                E23 = ifelse(E.cat %in% c("E2", "E3"),
+                             1,
+                             0),
+                E3 = ifelse(E.cat == "E3",
+                            1,
+                            0))
+
+for(feature_level in "species") {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
+  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    transform_sample_counts(tss) %>%  
+    otu_table2
+  
+  l_results <- list()
+  for(test in names(l_tests_subtype)) {
+    print(test)
+    test_param <- l_tests_subtype[[test]]
+    # result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+    #                            data = metadata_test %>%
+    #                              dplyr::filter(!!test_param$exprs_filter),
+    #                            test_variable = test_param$test_variable,
+    #                            contrasts = test_param$contrasts,
+    #                            batch_variable = test_param$batch_variable,
+    #                            covariates = test_param$covariates,
+    #                            covariates.random =
+    #                              test_param$covariates.random,
+    #                            moderator_variables =
+    #                              test_param$moderator_variables,
+    #                            n_features = 50,
+    #                            normalization = "TSS",
+    #                            transform = "AST",
+    #                            analysis_method = "LM",
+    #                            rma_method = "REML",
+    #                            directory = paste0(dir_outputChunk,
+    #                                               feature_level, "/",
+    #                                               test, "/"),
+    #                            forest.plots = TRUE,
+    #                            verbose = FALSE)
+    # save(result, file = paste0(dir_outputChunk, feature_level, "/",
+    #                            test, "/result.RData"))
+    load(paste0(dir_outputChunk, feature_level, "/",
+                test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  for(test in c("B2_vs_B1", "B3_vs_B1",
+                "E2_vs_E1", "E3_vs_E1")) {
+    print(test)
+    load(paste0(dir_output, "Maaslin2/", feature_level, "/",
+                test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  
+  plot_metaAnalysis(l_results, c("B2_vs_B1", "B3_vs_B1", "CD Behavior",
+                                 "E2_vs_E1", "E3_vs_E1", "UC Extent"), 
+                    "disease_subtype_direction",
+                    paste0(dir_outputChunk, feature_level, "/"))
+}
+```

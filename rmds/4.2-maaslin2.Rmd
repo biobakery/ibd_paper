@@ -1,0 +1,208 @@
+---
+title: "4-association"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+# Overview
+Perform association analysis on covariates.
+- PERMANOVA
+- Maaslin2
+
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/4-association/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+
+# Maaslin2
+```{r load data}
+source("assets/ma_tests.R")
+load("data/phyloseq/species_adj.RData")
+metadata <- sample_data2(phylo_species_adj)
+```
+
+```{r Maaslin2}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/")
+dir.create(dir_outputChunk)
+
+metadata_test <- metadata %>% 
+  dplyr::mutate(race_fill = fill_na(race),
+                gender_fill = fill_na(gender),
+                age.cat_fill = 
+                  dplyr::case_when(age < 18 ~ "child",
+                                   !is.na(age) ~ "adult",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                age_at_diagnosis.cat_fill = 
+                  dplyr::case_when(age_at_diagnosis < 18 ~ "A1",
+                                   age_at_diagnosis < 40 ~ "A2",
+                                   !is.na(age_at_diagnosis) ~ "A3",
+                                   TRUE ~ NA_character_) %>% fill_na,
+                study_site = paste(dataset_name, 
+                                   sample_type, 
+                                   sep = "_"),
+                study_site_disease = paste(dataset_name, 
+                                           sample_type, 
+                                           disease, sep = "_"),
+                subject_accession_longitudinal =
+                  ifelse(dataset_name %in%
+                           studies_longitudinal,
+                         subject_accession,
+                         NA_character_))
+
+for(feature_level in c("genera", "species", "otus")) {
+  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+  load(paste0("data/phyloseq/", feature_level, "_adj.RData"))
+  mat_otu_adj <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    transform_sample_counts(tss) %>%  
+    otu_table2
+  
+  l_results <- list()
+  for(test in names(l_tests)) {
+    print(test)
+    test_param <- l_tests[[test]]
+    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+                               data = metadata_test %>%
+                                 dplyr::filter(!!test_param$exprs_filter),
+                               test_variable = test_param$test_variable,
+                               contrasts = test_param$contrasts,
+                               batch_variable = test_param$batch_variable,
+                               covariates = test_param$covariates,
+                               covariates.random =
+                                 test_param$covariates.random,
+                               moderator_variables =
+                                 test_param$moderator_variables,
+                               n_features = 50,
+                               normalization = "TSS",
+                               transform = "AST",
+                               analysis_method = "LM",
+                               rma_method = "REML",
+                               directory = paste0(dir_outputChunk,
+                                                  feature_level, "/",
+                                                  test, "/"),
+                               forest.plots = TRUE,
+                               verbose = FALSE)
+    save(result, file = paste0(dir_outputChunk, feature_level, "/",
+                               test, "/result.RData"))
+    # load(paste0(dir_outputChunk, feature_level, "/",
+    #             test, "/result.RData"))
+    l_results[[test]] <- result
+  }
+  result_all <- l_results %>%
+    purrr::imap_dfr(function(result, test) {
+      result$tb_summarise %>%
+        tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>%
+        dplyr::group_by_at(vars(-weight, -study)) %>%
+        dplyr::arrange(desc(weight)) %>%
+        dplyr::summarise(max_weight = weight[1],
+                         study_max_weight = study[1]) %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(study_max_weight = study_max_weight %>%
+                        stringr::str_replace_all("weight\\_", ""),
+                      test = test,
+                      q.fdr_meta = ifelse(k > 2,
+                                          pval,
+                                          NA_real_) %>%
+                        p.adjust(method = "fdr"))
+    })
+  readr::write_tsv(result_all, paste0(dir_outputChunk,
+                                      feature_level,
+                                      "/all_results.tsv"))
+  
+  # Visualization
+  # disease status
+  plot_metaAnalysis(l_results, tests_disease, "disease",
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # disease subtype
+  plot_metaAnalysis(l_results, tests_diseaseSubtype, "disease_subtype",
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # treatment
+  plot_metaAnalysis(l_results, tests_treatment, "treatment",
+                    paste0(dir_outputChunk, feature_level, "/"))
+  # covariate
+  plot_metaAnalysis(l_results, tests_covariate, "covariate",
+                    paste0(dir_outputChunk, feature_level, "/"))
+}
+```
+# Compare OTU-level and species-level Maaslin2 results
+```{r Maaslin2 OTU vs. species}
+dir_outputChunk <- paste0(dir_output, "Maaslin2/species_vs_otus/")
+dir.create(dir_outputChunk)
+l_results_species <- l_results_otus <- list()
+for(test in names(l_tests)) {
+  print(test)
+  test_param <- l_tests[[test]]
+  load(paste0("results/4-association/Maaslin2/species/",
+              test, "/result.RData"))
+  l_results_species[[test]] <- result
+  load(paste0("results/4-association/Maaslin2/otus/",
+              test, "/result.RData"))
+  l_results_otus[[test]] <- result
+}
+
+tb_species <- l_results_species %>%
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>%
+      dplyr::filter(k >= 2) %>%
+      dplyr::transmute(feature_species = feature,
+                       beta_species = beta,
+                       se_species = se,
+                       pval_species = pval) %>%
+      dplyr::mutate(q.fdr_species = p.adjust(pval_species, method = "fdr")) %>%
+      dplyr::mutate(test = test)
+  })
+tb_otus <- l_results_otus %>%
+  purrr::imap_dfr(function(result, test) {
+    result$tb_summarise %>%
+      dplyr::filter(k >= 2) %>%
+      dplyr::select(feature,
+                    beta,
+                    se,
+                    pval) %>%
+      dplyr::mutate(q.fdr = p.adjust(pval, method = "fdr")) %>%
+      dplyr::mutate(test = test)
+  }) %>%
+  dplyr::mutate(feature_species = feature %>%
+                  stringr::str_replace_all("\\|\\d+$", "") %>%
+                  paste0("|NA"))
+tb_plot <- tb_otus %>% 
+  dplyr::left_join(tb_species,
+                   by = c("feature_species", "test"))
+list(disease = tests_disease,
+     disease_subtype = tests_diseaseSubtype,
+     treatment = tests_treatment) %>% 
+  purrr::iwalk(function(tests, name_tests) {
+    p <- tb_plot %>%
+      dplyr::filter(test %in% (tests)) %>%
+      dplyr::mutate(test = factor(test, levels = tests)) %>% 
+      dplyr::group_by(feature_species) %>% 
+      dplyr::mutate(q.fdr_min = min(q.fdr)) %>% dplyr::ungroup() %>% 
+      dplyr::filter(q.fdr_min < 0.05) %>% 
+      ggplot(aes(x = feature_species, y = beta)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_point(aes(color = q.fdr < 0.05), 
+                 position = position_jitter(width = 0.25)) +
+      geom_point(aes(x = feature_species, 
+                     y = beta_species, 
+                     color = q.fdr_species < 0.05),
+                 shape = 17, size = 3) +
+      scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black")) +
+      facet_grid(.~test, scales = "free") + coord_flip()
+    ggsave(paste0(dir_outputChunk, name_tests, ".pdf"),
+           p,
+           height = p$data$feature_species %>% 
+             unique %>% length %>% divide_by(4),
+           width = 10 + 4*length(tests),
+           limitsize = FALSE)
+  })
+```
