@@ -1,0 +1,409 @@
+---
+title: "2.1-examine features"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    df_print: paged
+---
+# Overview
+- Check library size distributions
+- Sensitivity check on mapping otus at a particular taxonamy rank.
+- Taxa distribution across studies (alpha diveristy).
+- Uniquely present/absent taxa.
+- Check some individual OTUs
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, echo=FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/2.1-examine_features/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Load studies
+```{r load datasets}
+load("data/phyloseq/otus_prefilter.RData")
+load("data/phyloseq/species_prefilter.RData")
+load("data/phyloseq/genera_prefilter.RData")
+```
+
+# Library size distributions
+# Examine library sizes
+```{r check lib sizes, message=FALSE}
+# check original read count vs. those mapped with taxonamy vs. actual total read count
+# in the OTU table
+p <- sample_data2(phylo_species_prefilter) %>% 
+  tidyr::gather(key = "Type of read count",
+                value = "N",
+                original_read_count,
+                lib_size,
+                reads_mapping_to_OTU_with_taxonomy,
+                reads_mapping_to_unclassifed_OTU,
+                factor_key = TRUE) %>% 
+  ggplot(aes(x = dataset_name, y = log10(N + 1), color = `Type of read count`)) + 
+  geom_boxplot() + rotate_xaxis(90)
+print(p) %>% 
+  ggsave(filename = paste0(dir_output, "fig_libSize.pdf"),
+         .,
+         width = 10,
+         height = 8)
+
+# samples passing 1000 or 3000 lib size
+p1 <- sample_data2(phylo_species_prefilter) %>%
+  ggplot(aes(x = dataset_name, fill = (original_read_count > 3000))) +
+  geom_bar(stat = "count") +
+  rotate_xaxis(30) +
+  ggtitle("Cutoff = 3000")
+p2 <- sample_data2(phylo_species_prefilter) %>%
+  ggplot(aes(x = dataset_name, fill = (original_read_count > 1000))) +
+  geom_bar(stat = "count") +
+  rotate_xaxis(30) +
+  ggtitle("Cutoff = 1000")
+p <- cowplot::plot_grid(p1, p2, ncol = 1) %>%
+  cowplot_title(title = "Lib size filtering cut off?")
+print(p) %>%
+  ggsave(filename = paste0(dir_output, "fig_libSizeCutoff.pdf"),
+         .,
+         width = 10,
+         height = 8)
+```
+
+# Grouping otus into genera seems more appropriate than species
+```{r sensitivity taxonamy}
+tb_long <- studies %>% 
+  purrr::map_dfr(
+    function(study) {
+      # This doesn't work!!
+      # phylo_otus <- phylo_otus_prefilter %>%
+      #   phyloseq::subset_samples(dataset_name == study)
+      phylo_otus <- sample_data2(phylo_otus_prefilter) %>%
+        dplyr::filter(dataset_name %in% study) %>% 
+        magrittr::extract2("sample_accession_16S") %>% 
+        phyloseq::prune_samples(phylo_otus_prefilter)
+      phylo_otus <- phylo_otus %>%
+        phyloseq::filter_taxa(function(x) sum(x>0) >= 1, prune = TRUE)
+      tb_ra_otus <- phylo_otus %>%
+        transform_sample_counts(tss) %>%
+        phyloseq_to_tb()
+      tb_otu_taxonamy <- phylo_otus %>%
+        tax_table2() %>%
+        tibble::as_tibble(rownames = "feature") %>%
+        dplyr::mutate(classification = dplyr::case_when(
+          Rank7 != "s__" ~ "fully classified",
+          Rank1 == "k__" ~ "unclassified at kingdom",
+          Rank2 == "p__" ~ "unclassified at phylumn",
+          Rank3 == "c__" ~ "unclassified at class",
+          Rank4 == "o__" ~ "unclassified at order",
+          Rank5 == "f__" ~ "unclassified at family",
+          Rank6 == "g__" ~ "unclassified at genus",
+          Rank7 == "s__" ~ "unclassified at species"
+        ) %>%
+          factor(levels= c("fully classified",
+                           "unclassified at species",
+                           "unclassified at genus",
+                           "unclassified at family",
+                           "unclassified at order",
+                           "unclassified at class",
+                           "unclassified at phylumn",
+                           "unclassified at kingdom")))
+      
+      tb_ra_otus %>%
+        dplyr::left_join(tb_otu_taxonamy,
+                         by = c("feature", "Rank1", "Rank2", "Rank3",
+                                "Rank4", "Rank5", "Rank6", "Rank7"))
+    }
+  )
+
+# OTUs are mostly classified at order, family, genus, and species level
+p <- tb_long %>% 
+  dplyr::group_by(dataset_name, feature, classification) %>%
+  dplyr::filter(!duplicated(feature)) %>% dplyr::summarise(n = n()) %>%
+  ggplot(aes(x = dataset_name, y = n, fill = classification)) +
+  geom_bar(stat = "identity") +
+  rotate_xaxis(30) +
+  ggtitle("OTUs are mostly classified at order, family, genus, and species level")
+print(p) %>% 
+  ggsave(paste0(dir_output, "fig_OTUClassification.pdf"),
+         .,
+         width = 8,
+         height = 5)
+
+# OTUs are most abundantly classified at family, genus, and species level.
+p <- tb_long %>% 
+  dplyr::group_by(dataset_name, rownames, classification) %>% 
+  dplyr::summarise(abundance = sum(abundance)) %>% dplyr::ungroup() %>% 
+  dplyr::group_by(dataset_name, rownames) %>% 
+  dplyr::mutate(abundance_fullyClassified = 
+                  sum(abundance[classification %in% 
+                                  c("fully classified",
+                                    "unclassified at species")])) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(dataset_name, abundance_fullyClassified) %>% 
+  dplyr::mutate(rownames = factor(rownames, levels = unique(rownames))) %>% 
+  ggplot(aes(x = rownames, y = abundance, fill = classification)) +
+  geom_bar(stat = "identity") +
+  facet_grid(.~dataset_name, scales = "free_x", space = "free_x") +
+  no_label_xaxis() +
+  ggtitle("OTUs are most abundantly classified at family, genus, and species level.")
+print(p) %>% 
+  ggsave(paste0(dir_output, "fig_speciesClassificationAbd.pdf"),
+         .,
+         width = 20,
+         height = 6)
+
+# Abundance of OTUs unclassified at species level
+tb_long_speciesUnclassified <- tb_long %>% 
+  dplyr::filter(classification == "unclassified at species") %>% 
+  dplyr::group_by(dataset_name, rownames, Rank6, Rank7) %>% 
+  dplyr::summarise(abundance = sum(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(Rank6, Rank7) %>% 
+  dplyr::mutate(mean_abundance = mean(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(taxonamy = ifelse(mean_abundance >= 
+                                    sort(unique(mean_abundance), 
+                                         decreasing = TRUE)[10],
+                                  paste(Rank6, Rank7, sep = "|"), 
+                                  "others")) %>% 
+  dplyr::arrange(dplyr::desc(mean_abundance)) %>% 
+  dplyr::mutate(taxonamy = factor(taxonamy, levels = unique(taxonamy))) %>%
+  dplyr::group_by(dataset_name, rownames) %>% 
+  dplyr::mutate(all_abundance = sum(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(dataset_name, all_abundance) %>% 
+  dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
+p1 <- tb_long_speciesUnclassified %>% 
+  ggplot(aes(x = rownames, y = abundance, fill = taxonamy)) +
+  geom_bar(stat = "identity") +
+  facet_grid(.~dataset_name, scales = "free_x", space = "free_x") +
+  no_label_xaxis() +
+  ggtitle("Abundance of OTUs unclassified at species level")
+p2 <- tb_long %>% 
+  dplyr::filter(classification == "unclassified at species") %>% 
+  dplyr::group_by(dataset_name) %>% 
+  dplyr::filter(!duplicated(feature)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(taxonamy = paste(Rank6, Rank7, sep = "|")) %>% 
+  dplyr::filter(taxonamy %in% levels(tb_long_speciesUnclassified$taxonamy)) %>%
+  dplyr::mutate(taxonamy = factor(taxonamy, 
+                                  levels = 
+                                    levels(tb_long_speciesUnclassified$taxonamy))) %>% 
+  dplyr::group_by(dataset_name, taxonamy) %>% 
+  dplyr::summarise(n_otus = n()) %>% 
+  ggplot(aes(x = dataset_name, y = n_otus, fill = taxonamy)) +
+  geom_bar(stat = "identity") +
+  rotate_xaxis(30)
+cowplot::plot_grid(p1, p2, nrow = 1, rel_widths = c(0.8, 0.2)) %>% 
+  ggsave(paste0(dir_output, "fig_speciesUnclassified.pdf"),
+         .,
+         width = 25,
+         height = 6)
+
+# Abundance of OTUs unclassified at genera level
+tb_long_generaUnclassified <- tb_long %>% 
+  dplyr::filter(classification == "unclassified at genus") %>% 
+  dplyr::group_by(dataset_name, rownames, Rank5, Rank6) %>% 
+  dplyr::summarise(abundance = sum(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(Rank5, Rank6) %>% 
+  dplyr::mutate(mean_abundance = mean(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(taxonamy = ifelse(mean_abundance >= 
+                                    sort(unique(mean_abundance), 
+                                         decreasing = TRUE)[10],
+                                  paste(Rank5, Rank6, sep = "|"), 
+                                  "others")) %>% 
+  dplyr::arrange(dplyr::desc(mean_abundance)) %>% 
+  dplyr::mutate(taxonamy = factor(taxonamy, levels = unique(taxonamy))) %>%
+  dplyr::group_by(dataset_name, rownames) %>% 
+  dplyr::mutate(all_abundance = sum(abundance)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(dataset_name, all_abundance) %>% 
+  dplyr::mutate(rownames = factor(rownames, levels = unique(rownames)))
+p1 <- tb_long_generaUnclassified %>% 
+  ggplot(aes(x = rownames, y = abundance, fill = taxonamy)) +
+  geom_bar(stat = "identity") +
+  facet_grid(.~dataset_name, scales = "free_x", space = "free_x") +
+  no_label_xaxis() +
+  ggtitle("Abundance of OTUs unclassified at genera level")
+p2 <- tb_long %>% 
+  dplyr::filter(classification == "unclassified at genus") %>% 
+  dplyr::group_by(dataset_name) %>% 
+  dplyr::filter(!duplicated(feature)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(taxonamy = paste(Rank5, Rank6, sep = "|")) %>% 
+  dplyr::filter(taxonamy %in% levels(tb_long_generaUnclassified$taxonamy)) %>% 
+  dplyr::mutate(taxonamy = factor(taxonamy, 
+                                  levels = 
+                                    levels(tb_long_generaUnclassified$taxonamy))) %>% 
+  dplyr::group_by(dataset_name, taxonamy) %>% 
+  dplyr::summarise(n_otus = n()) %>% 
+  ggplot(aes(x = dataset_name, y = n_otus, fill = taxonamy)) +
+  geom_bar(stat = "identity") +
+  rotate_xaxis(30)
+p3 <- tb_long %>% 
+  dplyr::filter(classification == "unclassified at genus",
+                Rank5 == "f__Enterobacteriaceae",
+                Rank6 == "g__") %>% 
+  dplyr::group_by(dataset_name) %>% 
+  dplyr::filter(!duplicated(feature)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(taxonamy = paste(Rank5, Rank6, sep = "|")) %>% 
+  ggplot(aes(x = dataset_name)) +
+  geom_bar() +
+  rotate_xaxis(30) +
+  ggtitle("# unclassified f_Enterobacteriacea OTUs")
+cowplot::plot_grid(p1, p2, p3, nrow = 1, rel_widths = c(4, 1, 1)) %>% 
+  ggsave(paste0(dir_output, "fig_generaUnclassified.pdf"),
+         .,
+         width = 30,
+         height = 6)
+```
+
+# Examine alpha diversity.
+```{r alpha diversity across studies}
+tb_nTaxaSampleLibSize <- list(otus = phylo_otus_prefilter,
+                              species = phylo_species_prefilter,
+                              genera = phylo_genera_prefilter) %>% 
+  purrr::imap_dfr(function(phylo, feature_level) {
+    purrr::map_dfr(studies, function(study) {
+      phylo <- sample_data2(phylo) %>%
+        dplyr::filter(dataset_name %in% study) %>% 
+        magrittr::extract2("sample_accession_16S") %>% 
+        phyloseq::prune_samples(phylo)
+      phylo <- phylo %>%
+        phyloseq::filter_taxa(function(x) any(x > 0), prune = TRUE)
+      tibble::tibble(
+        feature_level = feature_level,
+        study = study,
+        N_taxa = phyloseq::ntaxa(phylo),
+        N_samples = phyloseq::nsamples(phylo),
+        median_log10LibSize = sample_data2(phylo)$lib_size %>% 
+          add(1) %>% log10 %>% 
+          median()
+      )
+    })
+  })
+p1 <- tb_nTaxaSampleLibSize %>% 
+  ggplot(aes(x = N_samples,
+             y = N_taxa)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = study)) +
+  facet_wrap(~factor(feature_level, levels = c("otus", "species", "genera")),
+             scales = "free_y")
+p2 <- tb_nTaxaSampleLibSize %>% 
+  ggplot(aes(x = median_log10LibSize,
+             y = N_taxa)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = study)) +
+  facet_wrap(~factor(feature_level, levels = c("otus", "species", "genera")),
+             scales = "free_y")
+cowplot::plot_grid(p1, p2, ncol = 1) %>% 
+  cowplot_title("Alpha diversity across studies") %>% 
+  ggsave(file = paste0(dir_output, "fig_alphaDiversity.pdf"),
+         width = 15,
+         heigh = 10)
+```
+
+# Examine uniquely present and absent taxa.
+```{r dataset specific species}
+list(species = phylo_species_prefilter,
+     genera = phylo_genera_prefilter) %>% 
+  purrr::iwalk(function(phylo, feature_level) {
+    tb_long <- phylo %>% 
+      phyloseq::transform_sample_counts(tss) %>% 
+      phyloseq_to_tb()
+    
+    tb_presence <- tb_long %>%
+      dplyr::group_by(feature, dataset_name) %>%
+      dplyr::summarise(present = any(abundance > 0)) %>%
+      dplyr::group_by(feature) %>%
+      dplyr::mutate(n_present = sum(present),
+                    n_absent = sum(!present))
+    
+    tb_long <- tb_long %>%
+      dplyr::left_join(tb_presence,
+                       by = c("feature", "dataset_name"))
+    tb_uniqPres <- tb_long %>%
+      dplyr::filter(n_present == 1, present) %>%
+      dplyr::group_by(feature, dataset_name) %>%
+      dplyr::summarise(mean_abundance = mean(abundance)) %>%
+      dplyr::ungroup()
+    tb_uniqAbs <- tb_long %>%
+      dplyr::filter(n_absent == 1, present) %>%
+      dplyr::group_by(feature) %>%
+      dplyr::summarise(mean_abundance = mean(abundance)) %>%
+      dplyr::ungroup() %>%
+      dplyr::left_join(
+        tb_presence %>%
+          dplyr::filter(n_absent == 1,
+                        !present),
+        by = "feature"
+      ) %>%
+      dplyr::select(feature, dataset_name, mean_abundance)
+    
+    # Table summarises feature presence
+    tb_presence %>%
+      dplyr::filter(!duplicated(feature)) %>%
+      dplyr::group_by(n_present) %>%
+      dplyr::summarise(N = n()) %>%
+      t() %>%
+      DT::datatable(caption = feature_level) %>%
+      print()
+    
+    # Figure uniquely present features
+    p <- tb_uniqPres %>%
+      dplyr::arrange(dataset_name, mean_abundance) %>%
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>%
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + 
+      geom_point() +
+      rotate_xaxis(90)
+    ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresent.pdf"),
+           plot = p,
+           width = 40,
+           height = 10)
+    p <- tb_uniqPres %>%
+      dplyr::filter(mean_abundance > 1e-4) %>%
+      dplyr::arrange(dataset_name, mean_abundance) %>%
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>%
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + 
+      geom_point() +
+      rotate_xaxis(90) + coord_flip()
+    p %>% print() %>%
+      ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresentZoom.pdf"),
+             plot = .,
+             width = 15,
+             height = 10)
+    
+    # Figure uniquely absent features
+    p <- tb_uniqAbs %>%
+      dplyr::arrange(dataset_name, mean_abundance) %>%
+      dplyr::mutate(feature = factor(feature, levels = feature)) %>%
+      ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + 
+      geom_point() +
+      rotate_xaxis(90) + coord_flip()
+    p %>% print() %>%
+      ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniqueAbsent.pdf"),
+             plot = .,
+             width = 15,
+             height = 10)
+  })
+```
+# Individual OTUS
+```{r individual OTUS}
+mat_tax_tmp <- tax_table2(phylo_species_prefilter)
+mat_tax_tmp %>% 
+  tibble::as_tibble(rownames = "otu_cluster") %>% 
+  dplyr::filter(Rank7 == "s__oncorhynchi")
+mat_tax_tmp %>% 
+  tibble::as_tibble(rownames = "otu_cluster") %>% 
+  dplyr::filter(Rank7 == "s__blattae")
+mat_tax_tmp %>% 
+  tibble::as_tibble(rownames = "otu_cluster") %>% 
+  dplyr::filter(Rank5 == "f__Enterobacteriaceae", Rank6 == "g__")
+```

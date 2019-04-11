@@ -112,7 +112,7 @@ kOverA2 <- function(k = 1, A = 0) {
   if(A >= 1) stop("Filtering is for relative abundance!")
   function(x) {
     if(any(is.na(x))) stop("Missing values in the data!")
-    sum(tss(x) > A) >= k
+    sum(MMUPHin:::tss(x) > A) >= k
   } 
 }
 
@@ -238,7 +238,7 @@ combine_phyloseq <- function(l_phylo) {
 # Transforms count phyloseq object to relative abundance space
 to_relativeAbundance <- function(phylo) {
   mat_otu <- otu_table2(phylo)
-  mat_otu_ra <- t(t(mat_otu) / sample_data2(phylo)$libSize)
+  mat_otu_ra <- t(t(mat_otu) / sample_data2(phylo)$lib_size)
   dimnames(mat_otu_ra) <- dimnames(mat_otu)
   phyloseq::otu_table(phylo) <- otu_table(mat_otu_ra, taxa_are_rows = TRUE)
   return(phylo)
