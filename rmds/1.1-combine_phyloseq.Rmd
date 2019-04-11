@@ -70,17 +70,13 @@ df_metadata <- df_metadata %>%
 #                 is.na(`reads mapping to OTU with taxonomy`),
 #                 is.na(`reads mapping to unclassifed OTU`)) %>% 
 #   nrow()
-df_df_metadata$`lib size` <- 
-  apply(otu_table2(phylo_otus_prefilter), 2, sum)
+df_metadata$`lib size` <- 
+  apply(otu_table2(phylo_otus_prefilter), 2, sum)[df_metadata$sample_accession_16S]
+# sanity check
+ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 4
 ```
 
 ```{r add baseline indicator}
-# df_metadata filtering
-phylo_genera <- phylo_genera %>% 
-  phyloseq::subset_samples(libSize >= 3000 &
-                             disease %in% c("CD", "UC", "control") &
-                             !is.na(sample_type) &
-                             !(dataset_name %in% "Pouchitis" & disease %in% "CD"))
 # baseline indicator is the first observation in longitudinal studies
 df_metadata_HMP2 <- df_metadata %>% 
   dplyr::filter(dataset_name == "HMP2") %>% 
@@ -119,20 +115,20 @@ df_metadata_Herfarth <- df_metadata %>%
   dplyr::arrange(time_point2) %>% 
   dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
   dplyr::select(-time_point2)
-# for not longitudinal studies, baseline indicator is always FALSE
+# for not longitudinal studies, baseline indicator is NA
 df_metadata <- rbind(df_metadata_HMP2,
                      df_metadata_PROTECT,
                      df_metadata_LSS_PRISM,
                      df_metadata_Jansson,
                      df_metadata_Herfarth) %>% 
-  dplyr::right_join(df_metadata, by = colnames(df_metadata)) %>% 
-  dplyr::mutate(is_baseline = ifelse(is.na(is_baseline),
-                                     FALSE,
-                                     is_baseline))
+  dplyr::right_join(df_metadata, by = colnames(df_metadata))
 rownames(df_metadata) <- df_metadata$sample_accession_16S
 # sanity check
-all(rownames(df_metadata) %in% sample_names(phylo_otus_prefilter))
-
+ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 5
+all(df_metadata$sample_accession_16S %in% sample_names(phylo_otus_prefilter))
+rownames(df_metadata) <- df_metadata$sample_accession_16S
+```
+```{r save these combined phyloseq objects}
 phylo_otus_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
                                                 phylo_otus_prefilter)
 sample_data(phylo_otus_prefilter) <- df_metadata
