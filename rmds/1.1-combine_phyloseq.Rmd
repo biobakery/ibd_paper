@@ -9,7 +9,7 @@ output:
 # Overview
 - Combine studies into one phyloseq object.
 - Filter to only CD/UC/control samples with available sample type.
-- Add df_metadata columns (baseline indicator, library size, etc.)
+- Add metadata columns (baseline indicator, library size, etc.)
 ```{r setup, echo=FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
@@ -22,6 +22,7 @@ setup(getwd())
 dir_output <- "results/2-QC/"
 dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
+
 # Combine studies into one phyloseq object
 ```{r load datasets and aggregate studies}
 print(studies)
@@ -43,17 +44,17 @@ for(study in studies) {
 phylo_otus_prefilter <- combine_phyloseq(l_otus)
 phylo_species_prefilter <- combine_phyloseq(l_species)
 phylo_genera_prefilter <- combine_phyloseq(l_genera)
-df_df_metadata <- sample_data2(phylo_species_prefilter)
+df_metadata <- sample_data2(phylo_species_prefilter)
 ```
 
 # Filter by disease and sample type
 ```{r filtering}
-df_df_metadata <- df_df_metadata %>% 
+df_metadata <- df_metadata %>% 
   dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
   dplyr::filter(!is.na(sample_type))
 ```
 
-# Add columns to df_metadata
+# Add columns to metadata
 ```{r library size}
 tb_readCounts <- studies %>% 
   purrr::map_dfr(~ paste0(dir_processed, 
@@ -61,10 +62,10 @@ tb_readCounts <- studies %>%
                           .x, 
                           "/16s/all_samples_read_counts.tsv") %>% 
                    readr::read_tsv(col_types = "cddd"))
-df_df_metadata <- df_df_metadata %>% 
+df_metadata <- df_metadata %>% 
   dplyr::left_join(tb_readCounts, by = c("sample_accession_16S" = "# sample"))
 # sanity check
-# df_df_metadata %>% 
+# df_metadata %>% 
 #   dplyr::filter(is.na(`original read count`),
 #                 is.na(`reads mapping to OTU with taxonomy`),
 #                 is.na(`reads mapping to unclassifed OTU`)) %>% 
