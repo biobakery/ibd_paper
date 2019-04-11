@@ -3,6 +3,8 @@
 *.RData
 *.Ruserdata
 *.DS_Store
+*.html
+data
 results
 figures
 tables

@@ -30,7 +30,7 @@ load("data/phyloseq/species_prefilter.RData")
 load("data/phyloseq/genera_prefilter.RData")
 ```
 
-# Filter samples and taxa
+# Filter samples
 ```{r filter samples and taxa}
 print(c(nsamples(phylo_species_prefilter),
         dplyr::n_distinct(sample_data2(phylo_species_prefilter)$subject_accession),
@@ -46,6 +46,7 @@ print(c(nsamples(phylo_species),
         dplyr::n_distinct(sample_data2(phylo_genera)$subject_accession)))
 ```
 
+# Filter taxa
 ```{r filter taxa}
 cutoff_abundance <- c(1e-5, 1e-4, 1e-3)
 cutoff_prevalence <- c(0.05, 0.1)
