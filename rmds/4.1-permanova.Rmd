@@ -168,16 +168,18 @@ save(tb_permanova, file = "results/4.1-permanova/permanova_config.RData")
 
 ```{r run PERMANOVA}
 n_permutations <- 2 # set # permuations for PERMANOVA
-ncores <- 1
+ncores <- 2
 l_results <- list()
 for(i_run in (1:nrow(tb_permanova))[tb_permanova$phylo == "adjusted"]) {
   print(i_run)
+  if(i_run <= 20) next ## FIXME
   i_tb_permanova <- tb_permanova[i_run, ]
   
   if(!i_tb_permanova$variable_fit) {
     adonis_fit <- NULL
     save(adonis_fit, file = paste0("results/4.1-permanova/adonis_fit_",
                                    i_run, ".RData"))
+    next
   }
   
   if(i_tb_permanova$study == "all") {
@@ -188,7 +190,8 @@ for(i_run in (1:nrow(tb_permanova))[tb_permanova$phylo == "adjusted"]) {
   i_study <- i_metadata_test$dataset_name
   names(i_study) <- rownames(i_metadata_test)
   if(i_tb_permanova$study == "all" & i_tb_permanova$variable == "subject") {
-    i_subject <- i_metadata_test$dataset_name
+    i_subject <- i_metadata_test$dataset_name # for subject R2 in all studies,
+    # permute "subject" freely but within studies
   } else {
     i_subject <- i_metadata_test$subject_accession
   }
@@ -258,7 +261,7 @@ for(i_run in (1:nrow(tb_permanova))[tb_permanova$phylo == "adjusted"]) {
   if(i_tb_permanova$permanova_call == "sample")
     adonis_fit <- 
     vegan::adonis(i_dist ~ ., 
-                  data = i_sample_data[, variabes_fit, drop = FALSE],
+                  data = i_metadata_test[, variables_fit, drop = FALSE],
                   permutations = n_permutations,
                   parallel = ncores)
   l_results[[i_run]] <- adonis_fit

@@ -44,8 +44,11 @@ for(study in studies) {
   l_genera[[study]] <- phylo_genera
 }
 phylo_otus <- combine_phyloseq(l_otus)
+save(phylo_otus, file = "data/phyloseq/otus_perfiltering.RData")
 phylo_species <- combine_phyloseq(l_species)
+save(phylo_species, file = "data/phyloseq/species_perfiltering.RData")
 phylo_genera <- combine_phyloseq(l_genera)
+save(phylo_genera, file = "data/phyloseq/genera_perfiltering.RData")
 ```
 # Grouping otus into genera seems more appropriate than species
 ```{r sensitivity taxonamy}
@@ -196,7 +199,7 @@ cowplot::plot_grid(p1, p2, p3, nrow = 1, rel_widths = c(4, 1, 1)) %>%
          height = 6)
 ```
 # Examine alpha diversity.
-```{r "alpha diversity across studies"}
+```{r alpha diversity across studies}
 tb_nTaxaSampleLibSize <- list(otus = l_otus,
                               species = l_species,
                               genera = l_genera) %>% 
@@ -234,7 +237,7 @@ cowplot::plot_grid(p1, p2, ncol = 1) %>%
          heigh = 10)
 ```
 # Examine uniquely present and absent taxa.
-```{r "dataset specific species"}
+```{r dataset specific species}
 # function to mark observations as outliers
 is_outlier <- function(x) {
   return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
@@ -473,7 +476,8 @@ tax_table2(phylo_genera) %>%
 # Examine library sizes
 ```{r check lib sizes, message=FALSE}
 # sanity check
-tb_1 <- readr::read_csv("tables/table1/assets/table1_metadata.csv")
+tb_1 <- readxl::read_xlsx("tables/table1/assets/table1_metadata.xlsx",
+                          sheet = 1)
 
 tb_libSize <- list(otu = l_otus,
                    species = l_species, 
@@ -519,6 +523,7 @@ tb_libSize_summary <- tb_libSize %>%
                    sd_libSize = sd(lib_size),
                    mean_original_libSize = mean(original_read_count),
                    sd_original_libSize = sd(original_read_count),
+                   median_percentage = median(lib_size / original_read_count),
                    n = n(),
                    n_greater_than_3000 = sum(lib_size > 3000))
 tb_libSize_summary %>% 
@@ -661,7 +666,7 @@ save(phylo_species, file = "data/phyloseq/species.RData")
 ```
 
 # Examine alpha diversity post filtering.
-```{r "alpha diversity across studies"}
+```{r alpha diversity across studies post filtering}
 tb_1 <- readr::read_csv("tables/table1/assets/table1_metadata.csv")
 tb_nTaxaSampleLibSize <- list(species = phylo_species,
                               genera = phylo_genera) %>% 
@@ -693,8 +698,8 @@ ggsave(file = paste0(dir_output, "fig_alphaDiversity_post_filtering.pdf"),
        width = 8,
        heigh = 4)
 ```
-# Examine uniquely present and absent taxa.
-```{r "dataset specific species"}
+# Examine uniquely present and absent taxa post filtering.
+```{r dataset specific species post filtering}
 # function to mark observations as outliers
 is_outlier <- function(x) {
   return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
@@ -946,4 +951,6 @@ list(species = phylo_species) %>%
     #          width = 15,
     #          height = 10)
   })
+# check distribution of Bifido wrt age?
+
 ```

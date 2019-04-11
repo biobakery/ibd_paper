@@ -1,0 +1,148 @@
+---
+title: "1.1-combine phyloseq objects"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    df_print: paged
+---
+# Overview
+- Combine studies into one phyloseq object.
+- Filter to only CD/UC/control samples with available sample type.
+- Add df_metadata columns (baseline indicator, library size, etc.)
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, echo=FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/2-QC/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+# Combine studies into one phyloseq object
+```{r load datasets and aggregate studies}
+print(studies)
+l_otus <- l_species <- l_genera <- list()
+for(study in studies) {
+  load(paste0("data/phyloseq/",
+              study,
+              "/otus.RData"))
+  load(paste0("data/phyloseq/",
+              study,
+              "/species.RData"))
+  load(paste0("data/phyloseq/",
+              study,
+              "/genera.RData"))
+  l_otus[[study]] <- phylo
+  l_species[[study]] <- phylo_species
+  l_genera[[study]] <- phylo_genera
+}
+phylo_otus_prefilter <- combine_phyloseq(l_otus)
+phylo_species_prefilter <- combine_phyloseq(l_species)
+phylo_genera_prefilter <- combine_phyloseq(l_genera)
+df_df_metadata <- sample_data2(phylo_species_prefilter)
+```
+
+# Filter by disease and sample type
+```{r filtering}
+df_df_metadata <- df_df_metadata %>% 
+  dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
+  dplyr::filter(!is.na(sample_type))
+```
+
+# Add columns to df_metadata
+```{r library size}
+tb_readCounts <- studies %>% 
+  purrr::map_dfr(~ paste0(dir_processed, 
+                          "processed/", 
+                          .x, 
+                          "/16s/all_samples_read_counts.tsv") %>% 
+                   readr::read_tsv(col_types = "cddd"))
+df_df_metadata <- df_df_metadata %>% 
+  dplyr::left_join(tb_readCounts, by = c("sample_accession_16S" = "# sample"))
+# sanity check
+# df_df_metadata %>% 
+#   dplyr::filter(is.na(`original read count`),
+#                 is.na(`reads mapping to OTU with taxonomy`),
+#                 is.na(`reads mapping to unclassifed OTU`)) %>% 
+#   nrow()
+df_df_metadata$`lib size` <- 
+  apply(otu_table2(phylo_otus_prefilter), 2, sum)
+```
+
+```{r add baseline indicator}
+# df_metadata filtering
+phylo_genera <- phylo_genera %>% 
+  phyloseq::subset_samples(libSize >= 3000 &
+                             disease %in% c("CD", "UC", "control") &
+                             !is.na(sample_type) &
+                             !(dataset_name %in% "Pouchitis" & disease %in% "CD"))
+# baseline indicator is the first observation in longitudinal studies
+df_metadata_HMP2 <- df_metadata %>% 
+  dplyr::filter(dataset_name == "HMP2") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+df_metadata_PROTECT <- df_metadata %>% 
+  dplyr::filter(dataset_name == "PROTECT") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+df_metadata_LSS_PRISM <- df_metadata %>% 
+  dplyr::filter(dataset_name == "LSS-PRISM") %>% 
+  dplyr::mutate(time_point2 = as.numeric(time_point)) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+df_metadata_Jansson <- df_metadata %>% 
+  dplyr::filter(dataset_name == "Jansson_Lamendella_Crohns") %>% 
+  dplyr::mutate(time_point2 = time_point %>% 
+                  stringr::str_replace_all("\\:.*$", "") %>% 
+                  as.numeric) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+df_metadata_Herfarth <- df_metadata %>% 
+  dplyr::filter(dataset_name == "Herfarth_CCFA_Microbiome_3B_combined") %>% 
+  dplyr::mutate(time_point2 = as.Date(time_point, format = "%Y-%m-%d")) %>% 
+  dplyr::group_by(subject_accession) %>% 
+  dplyr::arrange(time_point2) %>% 
+  dplyr::mutate(is_baseline = time_point2 %in% time_point2[1]) %>% 
+  dplyr::select(-time_point2)
+# for not longitudinal studies, baseline indicator is always FALSE
+df_metadata <- rbind(df_metadata_HMP2,
+                     df_metadata_PROTECT,
+                     df_metadata_LSS_PRISM,
+                     df_metadata_Jansson,
+                     df_metadata_Herfarth) %>% 
+  dplyr::right_join(df_metadata, by = colnames(df_metadata)) %>% 
+  dplyr::mutate(is_baseline = ifelse(is.na(is_baseline),
+                                     FALSE,
+                                     is_baseline))
+rownames(df_metadata) <- df_metadata$sample_accession_16S
+# sanity check
+all(rownames(df_metadata) %in% sample_names(phylo_otus_prefilter))
+
+phylo_otus_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                phylo_otus_prefilter)
+sample_data(phylo_otus_prefilter) <- df_metadata
+phylo_species_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                   phylo_species_prefilter)
+sample_data(phylo_species_prefilter) <- df_metadata
+phylo_genera_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                  phylo_genera_prefilter)
+sample_data(phylo_genera_prefilter) <- df_metadata
+
+save(phylo_otus_prefilter, file = "data/phyloseq/phylo_otus_prefilter.RData")
+save(phylo_species_prefilter, file = "data/phyloseq/species_prefilter.RData")
+save(phylo_genera_prefilter, file = "data/phyloseq/phylo_genera_prefilter.RData")
+```
