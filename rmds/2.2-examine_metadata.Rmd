@@ -1,5 +1,5 @@
 ---
-title: "2.2-examine metadata"
+title: "2.2-Examine metadata availability and distribution"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -96,4 +96,3 @@ cowplot::plot_grid(plotlist = l_p_num, ncol = 1) %>%
   ggsave(filename = paste0(dir_output, "fig_numDist.pdf"),
          width = 8, height = length(l_p_num) * 4)
 ```
-

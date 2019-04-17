@@ -238,7 +238,9 @@ combine_phyloseq <- function(l_phylo) {
 # Transforms count phyloseq object to relative abundance space
 to_relativeAbundance <- function(phylo) {
   mat_otu <- otu_table2(phylo)
-  mat_otu_ra <- t(t(mat_otu) / sample_data2(phylo)$lib_size)
+  if(all(mat_otu < 1))
+    stop("Warning! It seems the OTU table is already on relative scale!")
+  mat_otu_ra <- t(t(mat_otu) / sample_data2(phylo)$read_depth)
   dimnames(mat_otu_ra) <- dimnames(mat_otu)
   phyloseq::otu_table(phylo) <- otu_table(mat_otu_ra, taxa_are_rows = TRUE)
   return(phylo)

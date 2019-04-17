@@ -1,17 +1,22 @@
 ---
-title: "2.1-examine features"
+title: "2.1-Examine read depth and per-feature distributions"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
     df_print: paged
 ---
+
 # Overview
-- Check library size distributions
+- Check read depth distributions
 - Sensitivity check on mapping otus at a particular taxonamy rank.
 - Taxa distribution across studies (alpha diveristy).
 - Uniquely present/absent taxa.
 - Check some individual OTUs
+- Evaluate post-filtering results
+- Read depth vs. number of present feature distribution
+- Per feature heterogeneity.
+
 ```{r setup, echo=FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
@@ -30,44 +35,38 @@ dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 load("data/phyloseq/otus_prefilter.RData")
 load("data/phyloseq/species_prefilter.RData")
 load("data/phyloseq/genera_prefilter.RData")
+load("data/phyloseq/species.RData")
 ```
 
-# Library size distributions
-# Examine library sizes
-```{r check lib sizes, message=FALSE}
+# Examine read depths
+```{r check read depths, message=FALSE}
 # check original read count vs. those mapped with taxonamy vs. actual total read count
-# in the OTU table
-p <- sample_data2(phylo_species_prefilter) %>% 
-  tidyr::gather(key = "Type of read count",
-                value = "N",
-                original_read_count,
-                lib_size,
-                reads_mapping_to_OTU_with_taxonomy,
-                reads_mapping_to_unclassifed_OTU,
-                factor_key = TRUE) %>% 
-  ggplot(aes(x = dataset_name, y = log10(N + 1), color = `Type of read count`)) + 
-  geom_boxplot() + rotate_xaxis(90)
-print(p) %>% 
-  ggsave(filename = paste0(dir_output, "fig_libSize.pdf"),
-         .,
-         width = 10,
-         height = 8)
-
-# samples passing 1000 or 3000 lib size
+# in the OTU table. This goes into supp fig.
+source("functions/manuscript/suppFigures/suppFig_readDepth.R")
+p_compareReadCounts <- 
+  suppFig_readDepth(phylo_species_prefilter,
+                      phylo_species_prefilter,
+                      phylo_species_prefilter)$p_compareReadCounts
+print(p_compareReadCounts)
+# median perc of reads passed filtering and mapped to taxonomy
+phylo_species_prefilter %>% 
+  sample_data2 %>% 
+  dplyr::summarise(median_prop = median(read_depth / original_read_count))
+# samples passing 1000 or 3000 read depth The percentages > 3000 are in supp table.
 p1 <- sample_data2(phylo_species_prefilter) %>%
-  ggplot(aes(x = dataset_name, fill = (original_read_count > 3000))) +
+  ggplot(aes(x = dataset_name, fill = (read_depth > 3000))) +
   geom_bar(stat = "count") +
   rotate_xaxis(30) +
   ggtitle("Cutoff = 3000")
 p2 <- sample_data2(phylo_species_prefilter) %>%
-  ggplot(aes(x = dataset_name, fill = (original_read_count > 1000))) +
+  ggplot(aes(x = dataset_name, fill = (read_depth > 1000))) +
   geom_bar(stat = "count") +
   rotate_xaxis(30) +
   ggtitle("Cutoff = 1000")
 p <- cowplot::plot_grid(p1, p2, ncol = 1) %>%
-  cowplot_title(title = "Lib size filtering cut off?")
+  cowplot_title(title = "Read depth filtering cut off?")
 print(p) %>%
-  ggsave(filename = paste0(dir_output, "fig_libSizeCutoff.pdf"),
+  ggsave(filename = paste0(dir_output, "fig_readDepthCutoff.pdf"),
          .,
          width = 10,
          height = 8)
@@ -267,7 +266,7 @@ cowplot::plot_grid(p1, p2, p3, nrow = 1, rel_widths = c(4, 1, 1)) %>%
 
 # Examine alpha diversity.
 ```{r alpha diversity across studies}
-tb_nTaxaSampleLibSize <- list(otus = phylo_otus_prefilter,
+tb_nTaxaSampleReadDepth <- list(otus = phylo_otus_prefilter,
                               species = phylo_species_prefilter,
                               genera = phylo_genera_prefilter) %>% 
   purrr::imap_dfr(function(phylo, feature_level) {
@@ -283,21 +282,21 @@ tb_nTaxaSampleLibSize <- list(otus = phylo_otus_prefilter,
         study = study,
         N_taxa = phyloseq::ntaxa(phylo),
         N_samples = phyloseq::nsamples(phylo),
-        median_log10LibSize = sample_data2(phylo)$lib_size %>% 
+        median_log10ReadDepth = sample_data2(phylo)$read_depth %>% 
           add(1) %>% log10 %>% 
           median()
       )
     })
   })
-p1 <- tb_nTaxaSampleLibSize %>% 
+p1 <- tb_nTaxaSampleReadDepth %>% 
   ggplot(aes(x = N_samples,
              y = N_taxa)) +
   geom_point() +
   ggrepel::geom_text_repel(aes(label = study)) +
   facet_wrap(~factor(feature_level, levels = c("otus", "species", "genera")),
              scales = "free_y")
-p2 <- tb_nTaxaSampleLibSize %>% 
-  ggplot(aes(x = median_log10LibSize,
+p2 <- tb_nTaxaSampleReadDepth %>% 
+  ggplot(aes(x = median_log10ReadDepth,
              y = N_taxa)) +
   geom_point() +
   ggrepel::geom_text_repel(aes(label = study)) +
@@ -311,6 +310,7 @@ cowplot::plot_grid(p1, p2, ncol = 1) %>%
 ```
 
 # Examine uniquely present and absent taxa.
+
 ```{r dataset specific species}
 list(species = phylo_species_prefilter,
      genera = phylo_genera_prefilter) %>% 
@@ -394,7 +394,9 @@ list(species = phylo_species_prefilter,
              height = 10)
   })
 ```
+
 # Individual OTUS
+
 ```{r individual OTUS}
 mat_tax_tmp <- tax_table2(phylo_species_prefilter)
 mat_tax_tmp %>% 
@@ -406,4 +408,12 @@ mat_tax_tmp %>%
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
   dplyr::filter(Rank5 == "f__Enterobacteriaceae", Rank6 == "g__")
+```
+
+# Examine feature prevalence/abundance distribution after filtering
+These figures are fairly big so directly save to supplemental figures.
+```{r feautre prevalence abundance}
+source("functions/manuscript/suppFigures/suppFig_distPrevAbd.R")
+tmp <- suppFig_meidumHighPrevalent(phylo_species)
+tmp <- suppFig_featureMissingFromOne(phylo_species)
 ```

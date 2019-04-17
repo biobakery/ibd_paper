@@ -7,7 +7,7 @@ output:
     df_print: paged
 ---
 # Overview
-- Filter samples based on library size
+- Filter samples based on read depth
 - Filter features based on prevalence and abundance
 
 ```{r setup, echo=FALSE}
@@ -22,8 +22,9 @@ setup(getwd())
 dir_output <- "results/2-QC/"
 dir.create(dir_output)
 ```
+
 # Load studies
-# Load studies
+
 ```{r load datasets}
 load("data/phyloseq/otus_prefilter.RData")
 load("data/phyloseq/species_prefilter.RData")
@@ -31,15 +32,16 @@ load("data/phyloseq/genera_prefilter.RData")
 ```
 
 # Filter samples
+
 ```{r filter samples and taxa}
 print(c(nsamples(phylo_species_prefilter),
         dplyr::n_distinct(sample_data2(phylo_species_prefilter)$subject_accession),
         nsamples(phylo_genera_prefilter),
         dplyr::n_distinct(sample_data2(phylo_genera_prefilter)$subject_accession)))
 phylo_species <- phylo_species_prefilter %>% 
-  phyloseq::subset_samples(lib_size > 3000)
+  phyloseq::subset_samples(read_depth > 3000)
 phylo_genera <- phylo_genera_prefilter %>% 
-  phyloseq::subset_samples(lib_size > 3000)
+  phyloseq::subset_samples(read_depth > 3000)
 print(c(nsamples(phylo_species),
         dplyr::n_distinct(sample_data2(phylo_species)$subject_accession),
         nsamples(phylo_genera),
@@ -47,6 +49,7 @@ print(c(nsamples(phylo_species),
 ```
 
 # Filter taxa
+
 ```{r filter taxa}
 cutoff_abundance <- c(1e-5, 1e-4, 1e-3)
 cutoff_prevalence <- c(0.05, 0.1)
@@ -114,294 +117,4 @@ nsamples(phylo_species)
 
 save(phylo_genera, file = "data/phyloseq/genera.RData")
 save(phylo_species, file = "data/phyloseq/species.RData")
-```
-
-# Examine alpha diversity post filtering.
-```{r alpha diversity across studies post filtering}
-tb_1 <- readr::read_csv("tables/table1/assets/table1_metadata.csv")
-tb_nTaxaSampleLibSize <- list(species = phylo_species,
-                              genera = phylo_genera) %>% 
-  purrr::imap_dfr(function(phylo, feature_level) {
-    phylo %>% phyloseq_to_tb %>% 
-      dplyr::group_by(dataset_name, feature) %>% 
-      dplyr::summarise(present = any(abundance > 0),
-                       median_lib_size = median(log10(libSize))) %>% 
-      dplyr::group_by(dataset_name) %>% 
-      dplyr::summarise(alpha = sum(present),
-                       median_lib_size = unique(median_lib_size)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::mutate(feature_level = feature_level)
-  })
-tb_nTaxaSampleLibSize <- tb_nTaxaSampleLibSize %>% 
-  dplyr::left_join(tb_1, by = c("dataset_name" = "study_full_name"))
-p <- tb_nTaxaSampleLibSize %>% 
-  dplyr::mutate(feature_level = feature_level %>% 
-                  dplyr::recode_factor("species" = "Species",
-                                       "genera" = "Genera")) %>% 
-  ggplot(aes(x = median_lib_size,
-             y = alpha)) +
-  geom_point() +
-  ggrepel::geom_text_repel(aes(label = Study)) +
-  facet_wrap(~feature_level,
-             scales = "free_y") +
-  xlab("Median log10 library size") + ylab("#Present features")
-ggsave(file = paste0(dir_output, "fig_alphaDiversity_post_filtering.pdf"),
-       width = 8,
-       heigh = 4)
-```
-# Examine uniquely present and absent taxa post filtering.
-```{r dataset specific species post filtering}
-# function to mark observations as outliers
-is_outlier <- function(x) {
-  return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
-}
-# simplified study names
-tb_1 <- readr::read_csv("tables/table1/assets/table1_metadata.csv")
-all_studies <- setdiff(unique(tb_1$Study), NA_character_)
-list(species = phylo_species) %>% 
-  purrr::iwalk(function(phylo, feature_level) {
-    tb_long <- phylo %>% 
-      phyloseq::transform_sample_counts(tss) %>% 
-      phyloseq_to_tb()
-    tb_summarise <- tb_long %>% 
-      dplyr::group_by(feature) %>% 
-      dplyr::mutate(prevalence = mean(abundance > 1e-5)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::group_by(feature, dataset_name, prevalence) %>% 
-      dplyr::summarise(prevalence_study = mean(abundance > 1e-5),
-                       mean_abundance = mean(abundance)) %>% 
-      dplyr::group_by(feature) %>% 
-      dplyr::mutate(n_absent = sum(prevalence_study == 0),
-                    max_mean_abundance = max(mean_abundance)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::left_join(tb_1, by = c("dataset_name" = "study_full_name")) %>% 
-      dplyr::mutate(feature = feature %>% 
-                      stringr::str_replace_all(stringr::fixed("|NA"), ""))
-    p1 <- tb_summarise %>% 
-      dplyr::filter(prevalence > 0.7) %>% 
-      dplyr::group_by(feature) %>% 
-      dplyr::mutate(spread = IQR(mean_abundance),
-                    label = ifelse(is_outlier(mean_abundance),
-                                   Study, 
-                                   NA_character_),
-                    mean_abundance_not_outlier = ifelse(is_outlier(mean_abundance),
-                                                        NA_real_,
-                                                        mean_abundance)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::arrange(spread) %>% 
-      dplyr::mutate(feature = factor(feature, levels = unique(feature))) %>% 
-      ggplot(aes(x = feature, y = mean_abundance)) +
-      geom_boxplot(outlier.size = 0.5, outlier.alpha = 0.5) +
-      geom_point(aes(x = feature, y = mean_abundance_not_outlier),
-                 position = position_jitter(width = 0.2),
-                 size = 0.5,
-                 alpha = 0.5) +
-      ggrepel::geom_text_repel(aes(label = label),
-                               angle = 270,
-                               size = 2,
-                               min.segment.length = 0) +
-      xlab("Feature") + ylab("Study mean relative abundance") +
-      coord_flip()
-    ggsave(filename = paste0(dir_output, feature_level,
-                             "highly_prevalent_post_filtering.pdf"),
-           p1,
-           width = 12,
-           height = 6)
-    p2 <- tb_summarise %>% 
-      dplyr::filter(prevalence <= 0.7, n_absent == 0) %>% 
-      dplyr::group_by(feature) %>% 
-      dplyr::mutate(spread = IQR(prevalence_study),
-                    label = ifelse(is_outlier(prevalence_study),
-                                   Study, 
-                                   NA_character_),
-                    prevalence_study_not_outlier = ifelse(is_outlier(prevalence_study),
-                                                          NA_real_,
-                                                          prevalence_study)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::arrange(spread) %>% 
-      dplyr::mutate(feature = factor(feature, levels = unique(feature))) %>% 
-      ggplot(aes(x = feature, y = prevalence_study)) +
-      geom_boxplot(outlier.size = 0.5,
-                   outlier.alpha = 0.5) +
-      geom_point(aes(y = prevalence_study_not_outlier), 
-                 position = position_jitter(width = 0.2),
-                 size = 0.5,
-                 alpha = 0.5) +
-      ggrepel::geom_text_repel(aes(label = label),
-                               angle = 270,
-                               size = 2,
-                               min.segment.length = 0) +
-      xlab("Feature") + ylab("Study prevalence") +
-      coord_flip()
-    ggsave(filename = paste0(dir_output, feature_level,
-                             "medium_prevalent_post_filtering.pdf"),
-           p2,
-           width = 12,
-           height = 10)
-    
-    test <- tb_summarise %>% 
-      dplyr::filter(prevalence <= 0.7, n_absent == 0) %>% 
-      dplyr::left_join(tb_libSize_summary, by = "Study") %>% 
-      dplyr::group_by(feature) %>% 
-      dplyr::mutate(cor = cor(prevalence_study, 
-                              mean_libSize,
-                              method = "spearman"))
-    p_test <- test %>% dplyr::group_by(feature) %>% 
-      dplyr::mutate(spread = IQR(prevalence_study)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::filter(!duplicated(feature)) %>% 
-      dplyr::arrange(spread) %>% 
-      dplyr::mutate(feature = factor(feature, levels = unique(feature))) %>%
-      ggplot(aes(x = feature, y = cor)) +
-      geom_bar(stat = "identity") +
-      coord_flip()
-     ggsave(filename = paste0(dir_output, feature_level,
-                             "medium_prevalent_post_filtering_cor.pdf"),
-           p_test,
-           width = 12,
-           height = 10)
-     
-    p3 <- tb_summarise %>% 
-      dplyr::filter(prevalence <= 0.7, n_absent >= 1, prevalence_study > 0) %>% 
-      dplyr::group_by(feature, n_absent) %>% 
-      dplyr::mutate(n_prevalent = n(),
-                    include = max(prevalence_study) > 0.05,
-                    spread = IQR(prevalence_study),
-                    label = ifelse(is_outlier(prevalence_study),
-                                   Study, 
-                                   NA_character_),
-                    prevalence_study_not_outlier = ifelse(is_outlier(prevalence_study),
-                                                          NA_real_,
-                                                          prevalence_study),
-                    study_present = ifelse(n_absent[1] == 9,
-                                           Study[1],
-                                           NA_character_)) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::filter(include) %>% 
-      dplyr::arrange(-n_prevalent) %>% 
-      dplyr::mutate(n_prevalent_group = paste0("#Studies prevalent ", n_prevalent) %>% 
-                      forcats::as_factor()) %>% 
-      dplyr::arrange(n_prevalent, study_present, spread, prevalence_study) %>% 
-      dplyr::mutate(feature = factor(feature, levels = unique(feature))) %>% 
-      ggplot(aes(x = feature, y = prevalence_study)) +
-      geom_boxplot(outlier.size = 0.5,
-                   outlier.alpha = 0.5) +
-      geom_point(aes(x = feature, y = prevalence_study_not_outlier),
-                 position = position_jitter(width = 0.2),
-                 size = 0.5,
-                 alpha = 0.5) +
-      ggrepel::geom_text_repel(aes(label = label),
-                               angle = 270,
-                               size = 2,
-                               min.segment.length = 0) +
-      geom_text(aes(label = study_present,
-                    y = ifelse(prevalence_study > 0.5,
-                               prevalence_study - 0.05,
-                               prevalence_study + 0.05), 
-                    hjust = ifelse(prevalence_study > 0.5,
-                                   1,
-                                   0)), size = 2) +
-      facet_wrap(.~n_prevalent_group, scales = "free_y", nrow = 3) +
-      theme(axis.text.y = element_text(size = 5)) +
-      xlab("Feature") + ylab("Study prevalence") +
-      coord_flip()
-    # p3 <- tb_summarise %>% 
-    #   dplyr::filter(prevalence <= 0.7, n_absent >= 1, prevalence_study > 0) %>% 
-    #   dplyr::group_by(feature, n_absent) %>% 
-    #   dplyr::summarise(n_prevalent = n(),
-    #                    include = max(prevalence_study) > 0.05,
-    #                    study_present = ifelse(n_absent[1] == 9,
-    #                                           Study[1],
-    #                                           NA_character_)) %>% 
-    #   dplyr::ungroup() %>% 
-    #   dplyr::filter(include) %>% 
-    #   dplyr::arrange(n_prevalent, study_missing, study_present) %>% 
-    #   dplyr::mutate(feature = factor(feature, levels = unique(feature))) %>% 
-    #   ggplot(aes(x = feature, y = n_prevalent)) +
-    #   geom_bar(stat = "identity") +
-    #   geom_text(aes(label = study_missing, y = n_prevalent + 0.3), hjust = 0, size = 2) +
-    #   geom_text(aes(label = study_present, y = n_prevalent + 0.3), hjust = 0, size = 2) +
-    #   scale_y_continuous(breaks = 1:9,
-    #                      limits = c(0, 18)) +
-    #   coord_flip()
-    ggsave(filename = paste0(dir_output, feature_level,
-                             "absent_at_least_one_post_filtering.pdf"),
-           p3,
-           width = 21,
-           height = 15,
-           limitsize = FALSE)
-    
-    
-    # tb_presence <- tb_long %>% 
-    #   dplyr::group_by(feature, dataset_name) %>% 
-    #   dplyr::summarise(present = any(abundance > 0)) %>% 
-    #   dplyr::group_by(feature) %>% 
-    #   dplyr::mutate(n_present = sum(present),
-    #                 n_absent = sum(!present))
-    # tb_long <- tb_long %>% 
-    #   dplyr::left_join(tb_presence,
-    #                    by = c("feature", "dataset_name"))
-    # tb_uniqPres <- tb_long %>% 
-    #   dplyr::filter(n_present == 1, present) %>% 
-    #   dplyr::group_by(feature, dataset_name) %>% 
-    #   dplyr::summarise(mean_abundance = mean(abundance)) %>% 
-    #   dplyr::ungroup()
-    # tb_uniqAbs <- tb_long %>% 
-    #   dplyr::filter(n_absent == 1, present) %>% 
-    #   dplyr::group_by(feature) %>% 
-    #   dplyr::summarise(mean_abundance = mean(abundance)) %>% 
-    #   dplyr::ungroup() %>% 
-    #   dplyr::left_join(
-    #     tb_presence %>% 
-    #       dplyr::filter(n_absent == 1,
-    #                     !present),
-    #     by = "feature"
-    #   ) %>% 
-    #   dplyr::select(feature, dataset_name, mean_abundance)
-    # 
-    # # Table summarises feature presence
-    # tb_presence %>% 
-    #   dplyr::filter(!duplicated(feature)) %>% 
-    #   dplyr::group_by(n_present) %>% 
-    #   dplyr::summarise(N = n()) %>% 
-    #   t() %>% 
-    #   DT::datatable(caption = feature_level) %>% 
-    #   print()
-    # 
-    # # Figure uniquely present features
-    # p <- tb_uniqPres %>% 
-    #   dplyr::arrange(dataset_name, mean_abundance) %>% 
-    #   dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    #   ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
-    #   rotate_xaxis(90) 
-    # ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresent.pdf"),
-    #        plot = p,
-    #        width = 40,
-    #        height = 10)
-    # p <- tb_uniqPres %>% 
-    #   dplyr::filter(mean_abundance > 1e-4) %>% 
-    #   dplyr::arrange(dataset_name, mean_abundance) %>% 
-    #   dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    #   ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
-    #   rotate_xaxis(90) + coord_flip()
-    # p %>% print() %>% 
-    #   ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniquePresentZoom.pdf"),
-    #          plot = .,
-    #          width = 15,
-    #          height = 10)
-    # 
-    # # Figure uniquely absent features
-    # p <- tb_uniqAbs %>% 
-    #   dplyr::arrange(dataset_name, mean_abundance) %>% 
-    #   dplyr::mutate(feature = factor(feature, levels = feature)) %>% 
-    #   ggplot(aes(x = feature, y = mean_abundance, color = dataset_name)) + geom_point() +
-    #   rotate_xaxis(90) + coord_flip() 
-    # p %>% print() %>% 
-    #   ggsave(filename = paste0(dir_output, "fig_", feature_level, "UniqueAbsent.pdf"),
-    #          plot = .,
-    #          width = 15,
-    #          height = 10)
-  })
-# check distribution of Bifido wrt age?
-
 ```

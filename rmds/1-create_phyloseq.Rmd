@@ -1,5 +1,5 @@
 ---
-title: "1-create_phyloseq"
+title: "1-Create phyloseq objects"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -20,7 +20,9 @@ for(i.function in list.files("functions/", full.names = TRUE)) {
 }
 setup(getwd())
 ```
+
 # Load .biom files from 16s workflow
+
 ```{r load bioms}
 print(studies)
 l_biom <- list()
@@ -37,6 +39,7 @@ for(study in studies) {
 ```
 
 # Load cuarated metadata, match samples, create phyloseq objects.
+
 ```{r create phyloseq}
 template <- paste0(dir_processed, "data/template.csv") %>% 
   readr::read_csv()

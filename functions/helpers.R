@@ -75,7 +75,38 @@ extract_pcoa <- function(fit_pcoa, n_axis) {
   tb_axes %>% dplyr::left_join(tb_varExplained, by = "axes") %>% return()
 }
 
+# for metadata
+# fill iin NAs
 fill_na <- function(variable) {
   if(class(variable) != "character") stop("variable must be character!")
   ifelse(is.na(variable), "NA", variable)
+}
+# summarise a variable given configuration
+summarise_variable <- function(x, 
+                               variable_type,
+                               categories = NULL) {
+  if(all(is.na(x))) return("")
+  
+  if(!(variable_type %in% c("character", "numeric")))
+    stop("Variable type must be either character or numeric!")
+  
+  if(variable_type == "character") {
+    if(is.null(categories))
+      stop("Allowed categories must be provided in variable is character!")
+    if(!all(x[!is.na(x)] %in% categories))
+      stop("x has values not present in categories!")
+    ns <- sapply(categories, function(cat) sum(x %in% cat))
+    ns <- ns[ns != 0]
+    return(paste0(names(ns), " " , ns) %>% 
+             paste0(collapse = "/"))
+  }
+  
+  if(variable_type == "numeric") {
+    mean_variable <- mean(x, na.rm = TRUE)
+    sd_variable <- sd(x, na.rm = TRUE)
+    return(paste0(round(mean_variable, digits = 2), 
+                  " (", 
+                  round(sd_variable, digits = 2),
+                  ")"))
+  }
 }

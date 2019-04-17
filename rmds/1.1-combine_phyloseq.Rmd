@@ -1,5 +1,5 @@
 ---
-title: "1.1-combine phyloseq objects"
+title: "1.1-Combine phyloseq objects"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -9,7 +9,8 @@ output:
 # Overview
 - Combine studies into one phyloseq object.
 - Filter to only CD/UC/control samples with available sample type.
-- Add metadata columns (baseline indicator, library size, etc.)
+- Add metadata columns (baseline indicator, read depth, etc.)
+
 ```{r setup, echo=FALSE}
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
@@ -22,6 +23,7 @@ setup(getwd())
 ```
 
 # Combine studies into one phyloseq object
+
 ```{r load datasets and aggregate studies}
 print(studies)
 l_otus <- l_species <- l_genera <- list()
@@ -46,6 +48,7 @@ df_metadata <- sample_data2(phylo_species_prefilter)
 ```
 
 # Filter by disease and sample type
+
 ```{r filtering}
 df_metadata <- df_metadata %>% 
   dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
@@ -53,7 +56,8 @@ df_metadata <- df_metadata %>%
 ```
 
 # Add columns to metadata
-```{r library size}
+
+```{r add read depth}
 tb_readCounts <- studies %>% 
   purrr::map_dfr(~ paste0(dir_processed, 
                           "processed/", 
@@ -64,14 +68,14 @@ df_metadata <- df_metadata %>%
   dplyr::left_join(tb_readCounts, by = c("sample_accession_16S" = "# sample")) %>% 
   dplyr::rename(original_read_count = `original read count`,
                 reads_mapping_to_OTU_with_taxonomy = `reads mapping to OTU with taxonomy`,
-                reads_mapping_to_unclassifed_OTU = `reads mapping to unclassifed OTU`)
+                reads_mapping_to_unclassified_OTU = `reads mapping to unclassifed OTU`)
 # sanity check
 # df_metadata %>% 
 #   dplyr::filter(is.na(`original read count`),
 #                 is.na(`reads mapping to OTU with taxonomy`),
 #                 is.na(`reads mapping to unclassifed OTU`)) %>% 
 #   nrow()
-df_metadata$`lib_size` <- 
+df_metadata$`read_depth` <- 
   apply(otu_table2(phylo_otus_prefilter), 2, sum)[df_metadata$sample_accession_16S]
 # sanity check
 ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 4
@@ -128,7 +132,10 @@ ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 5
 all(df_metadata$sample_accession_16S %in% sample_names(phylo_otus_prefilter))
 rownames(df_metadata) <- df_metadata$sample_accession_16S
 ```
-```{r save these combined phyloseq objects prune features that are just not there}
+
+# Prune features that are just not there after subsetting and save the combined phyloseq objects
+
+```{r prune features save}
 phylo_otus_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
                                                 phylo_otus_prefilter) %>% 
   phyloseq::filter_taxa(function(x) any(x > 0), prune = TRUE)
