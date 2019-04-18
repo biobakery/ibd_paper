@@ -193,6 +193,7 @@ l_results <- list()
 load("data/distance/bray/dist_genera.RData")
 load("data/distance/bray/dist_genera_adj.RData")
 load("data/distance/bray/dist_genera_adjBatch.RData")
+metadata
 for(i_run in (1:nrow(tb_permanova))) {
   print(i_run)
   i_tb_permanova <- tb_permanova[i_run, ]
@@ -204,7 +205,12 @@ for(i_run in (1:nrow(tb_permanova))) {
     next
   }
   
-  i_metadata_test <- i_tb_permanova$metadata[[1]]
+  if(i_tb_permanova$study == "all") {
+    i_metadata_test <- metadata_test
+  } else {
+    i_metadata_test <- subset(metadata_test, dataset_name %in% i_tb_permanova$stud)
+  }
+    
   # specify study and subject variables for block permutation
   i_study <- i_metadata_test$dataset_name
   names(i_study) <- rownames(i_metadata_test)
