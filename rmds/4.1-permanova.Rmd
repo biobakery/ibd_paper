@@ -187,7 +187,7 @@ save(tb_permanova, file = "results/4.1-permanova/permanova_config.RData")
 ```
 
 ```{r run PERMANOVA}
-n_permutations <- 1999 # set # permuations for PERMANOVA
+n_permutations <- 20 # set # permuations for PERMANOVA
 ncores <- 20
 load("data/distance/bray/dist_genera.RData")
 load("data/distance/bray/dist_genera_adj.RData")
