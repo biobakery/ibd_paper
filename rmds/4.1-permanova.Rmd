@@ -29,7 +29,7 @@ print(studies)
 load("data/phyloseq/genera.RData")
 
 # create additional variables to test for
-metadata <- sample_data2(phylo_genera_adj)
+metadata <- sample_data2(phylo_genera)
 metadata_test <- metadata %>% 
   dplyr::mutate(subtype = disease,
                 IBD = disease %>% 
@@ -128,7 +128,7 @@ tb_permanova <- tb_permanova %>%
   # subsetting metadata to the specific study for each study-variable pair
   dplyr::mutate(metadata = dplyr::case_when(
     study == "all" ~ list(metadata_test),
-    TRUE ~ list(subset(metadata_test, dataset_name == study))
+    TRUE ~ list(subset(metadata_test, dataset_name %in% study))
   )) %>% 
   # Within inidivudal study, create artificial "missingness" indicator covariate, 
   # which is adjusted for as covariate in the PERMANOVA model
@@ -187,11 +187,12 @@ save(tb_permanova, file = "results/4.1-permanova/permanova_config.RData")
 ```
 
 ```{r run PERMANOVA}
-n_permutations <- 2 # set # permuations for PERMANOVA
-ncores <- 2
+n_permutations <- 1999 # set # permuations for PERMANOVA
+ncores <- 20
 l_results <- list()
-load("data/distance/dist_genera.RData")
-load("data/distance/dist_genera_adj.RData")
+load("data/distance/bray/dist_genera.RData")
+load("data/distance/bray/dist_genera_adj.RData")
+load("data/distance/bray/dist_genera_adjBatch.RData")
 for(i_run in (1:nrow(tb_permanova))) {
   print(i_run)
   i_tb_permanova <- tb_permanova[i_run, ]
@@ -268,8 +269,7 @@ for(i_run in (1:nrow(tb_permanova))) {
   if(i_tb_permanova$phylo == "adjusted") 
     i_dist <- subset_distance(dist_genera_adj, rownames(i_metadata_test))
   if(i_tb_permanova$phylo == "batch_adjusted") {
-    i_tb_permanova$study
-    i_dist
+    i_dist <- subset_distance(dist_genera_adjBatch, rownames(i_metadata_test))
   }
   
   # run the models
