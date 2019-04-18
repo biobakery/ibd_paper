@@ -173,7 +173,7 @@ tb_permanova <- tb_permanova %>%
                          1,
                          sum) <= 1),
                FALSE) ~ 
-      FALSE,
+        FALSE,
       TRUE ~ TRUE)
   ) %>% 
   dplyr::select(study, study_longitudinal,
@@ -182,12 +182,13 @@ tb_permanova <- tb_permanova %>%
                 variable_adjust, variable_adjust_type, variable_adjust_fit,
                 variable_na_fill, variable_na_fit,
                 permanova_call) %>% 
+  dplyr::ungroup() %>% 
   dplyr::arrange(study, variable)
 save(tb_permanova, file = "results/4.1-permanova/permanova_config.RData")
 ```
 
 ```{r run PERMANOVA}
-n_permutations <- 20 # set # permuations for PERMANOVA
+n_permutations <- 1999 # set # permuations for PERMANOVA
 ncores <- 20
 load("data/distance/bray/dist_genera.RData")
 load("data/distance/bray/dist_genera_adj.RData")
@@ -207,13 +208,13 @@ for(i_run in (1:nrow(tb_permanova))) {
   } else {
     i_metadata_test <- subset(metadata_test, dataset_name %in% i_tb_permanova$study)
   }
-    
+  
   # specify study and subject variables for block permutation
   i_study <- i_metadata_test$dataset_name
   names(i_study) <- rownames(i_metadata_test)
   if(i_tb_permanova$study == "all" & i_tb_permanova$variable == "subject") {
     i_subject <- i_metadata_test$dataset_name # for subject R2 in all studies,
-                                              # permute "subject" freely but within studies
+    # permute "subject" freely but within studies
   } else {
     i_subject <- i_metadata_test$subject_accession 
     # note, this includes the case when test is for study effects across studies, 

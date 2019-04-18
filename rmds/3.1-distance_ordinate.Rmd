@@ -45,26 +45,35 @@ if(anyDuplicated(distances$distance))
 # Calculate distances
 
 ```{r calculate distance}
-ncores <- 6
+ncores <- 20
 doParallel::registerDoParallel(cores = ncores)
 for(i in 1:nrow(distances)) {
   i_distance <- distances$distance[i]
   dir_output_tmp <- paste0("data/distance/", i_distance, "/")
   dir.create(dir_output_tmp, recursive = TRUE, showWarnings = FALSE)
   for(feature_level in c("genera", "species")) {
-    # calculate distance on the original matrix
-    phylo_tmp <- get(paste0("phylo_", feature_level)) %>% 
+    # calculate distance on the study-adjusted matrix
+    phylo_tmp <- get(paste0("phylo_", feature_level, "_adj")) %>% 
       to_relativeAbundance()
     dist_tmp <- phyloseq::distance(phylo_tmp, 
                                    method = i_distance,
                                    binary = distances$binary[i])
-    assign(paste0("dist_", feature_level), dist_tmp)
+    assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
     
-    if(distances$binary[i]) {
-      # if distance is binary then batch correction does not affect the dissimilarity
-      save(list = paste0("dist_", feature_level),
-           file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
+    if(i_distance != "bray") {
+      # for all distances except for bray, only evaluate the batch and study adjusted data
+      save(list = paste0("dist_", feature_level, "_adj"),
+           file = paste0(dir_output_tmp, "dist_", feature_level, "_adj.RData"))
     } else {
+      # for bray-curtis, also evaluate the original and batch adjusted data
+      # calculate distance on the original matrix
+      phylo_tmp <- get(paste0("phylo_", feature_level)) %>% 
+        to_relativeAbundance()
+      dist_tmp <- phyloseq::distance(phylo_tmp, 
+                                     method = i_distance,
+                                     binary = distances$binary[i])
+      assign(paste0("dist_", feature_level), dist_tmp)
+      
       # calculate distance on the batch-adjusted matrix
       phylo_tmp <- get(paste0("phylo_", feature_level, "_adjBatch")) %>% 
         to_relativeAbundance()
@@ -72,13 +81,6 @@ for(i in 1:nrow(distances)) {
                                      method = i_distance,
                                      binary = distances$binary[i])
       assign(paste0("dist_", feature_level, "_adjBatch"), dist_tmp)
-      # calculate distance on the study-adjusted matrix
-      phylo_tmp <- get(paste0("phylo_", feature_level, "_adj")) %>% 
-        to_relativeAbundance()
-      dist_tmp <- phyloseq::distance(phylo_tmp, 
-                                     method = i_distance,
-                                     binary = distances$binary[i])
-      assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
       
       save(list = paste0("dist_", feature_level),
            file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
