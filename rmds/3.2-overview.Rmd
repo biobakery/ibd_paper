@@ -1,0 +1,276 @@
+---
+title: "3.2-Visualization of overall microbial compositions across features"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+  df_print: paged
+---
+# Overview
+- Ordination across all cohorts colored by metadata items
+- Heatmap of top abundant features
+- Ordination of studies with batch information, before and after batch adjustment
+
+```{r setup, echo = FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+dir_output <- "results/3.2-overview/"
+dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+# A whole bunch of ordination
+```{r overview}
+load("data/phyloseq/genera.RData")
+distance_to_ordinate <- "bray"
+for(feature_level in c("genera", "species")) {
+  dir_output_tmp <- paste0(dir_output, feature_level, "/")
+  dir.create(dir_output_tmp, recursive = TRUE, showWarnings = TRUE)
+  load(paste0("data/ordinate/", distance_to_ordinate, "/ord_",
+              feature_level, ".RData"))
+  load(paste0("data/ordinate/", distance_to_ordinate, "/ord_",
+              feature_level, "_adj.RData"))
+  ordinate_before <- get(paste0("ord_", feature_level))
+  ordinate_after <- get(paste0("ord_", feature_level, "_adj"))
+  
+  list(1:2, 3:4) %>% # visualize the top four axes
+    purrr::walk(function(axes) {
+      # study
+      colors_study <- c("RISK" = "black",
+                        "PROTECT" = "grey",
+                        gg_color_hue(values = setdiff(studies, 
+                                                      c("RISK", "PROTECT"))))
+      p1 <- phyloseq::plot_ordination(phylo_genera, 
+                                      ordinate_before, 
+                                      axes = axes,
+                                      color = "dataset_name") +
+        scale_color_manual(values = colors_study) +
+        coord_fixed()
+      p2 <- phyloseq::plot_ordination(phylo_genera, 
+                                      ordinate_after, 
+                                      axes = axes,
+                                      color = "dataset_name") +
+        scale_color_manual(values = colors_study) +
+        coord_fixed()
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_output_tmp, 
+                                 "study", paste(axes, collapse = ""),".pdf"),
+               width = 15, height = 5)
+      
+      tb_plot <- sample_data2(phylo_genera) %>%
+        tibble::rownames_to_column() %>% 
+        dplyr::left_join(ordinate_after$vectors[, axes] %>% 
+                           as.data.frame %>% 
+                           set_colnames(paste0("Axis.", axes)) %>% 
+                           tibble::rownames_to_column(), 
+                         by = "rowname")
+      # disease
+      colors_disease <- c(gg_color_hue(c("CD", "UC")), "control" = "black")
+      p_disease <- tb_plot %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])),
+                   color = disease)) + 
+        geom_point() +
+        scale_color_manual(values = colors_disease) + 
+        coord_fixed() +
+        ggtitle("Disease")
+      ggsave(filename = paste0(dir_output_tmp, 
+                               "disease", paste(axes, collapse = ""),".pdf"), 
+             p_disease,
+             width = 7, height = 6)
+      # Montreal classifications
+      p1 <- tb_plot %>% 
+        dplyr::filter(!is.na(L.cat)) %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = L.cat)) + geom_point() + 
+        coord_fixed() +
+        ggtitle("CD location category")
+      p2 <- tb_plot %>% 
+        dplyr::filter(!is.na(B.cat)) %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])),
+                   color = B.cat)) + 
+        geom_point() + 
+        coord_fixed() + 
+        ggtitle("CD behaviour category")
+      p3 <- tb_plot %>% 
+        dplyr::filter(!is.na(E.cat)) %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = E.cat)) +
+        geom_point() + 
+        coord_fixed() + 
+        ggtitle("UC extent cateogry")
+      cowplot::plot_grid(p1, p2, p3, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_output_tmp,
+                                 "disease_phenotype", paste(axes, collapse = ""),".pdf"),
+               ., width = 17, height = 5)
+      
+      # body site
+      p1 <- tb_plot %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = sample_type)) + 
+        geom_point() + 
+        coord_fixed() + ggtitle("biopsy vs. stool")
+      p2 <- tb_plot %>% 
+        dplyr::filter(sample_type %in% "biopsy") %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = body_site)) + 
+        geom_point() + 
+        coord_fixed() + ggtitle("biopsy site")
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_output_tmp, 
+                                 "bodysite", paste(axes, collapse = ""),".pdf"),
+               ., width = 12, height = 5)
+      
+      # age
+      p1 <- tb_plot %>% 
+        dplyr::filter(!is.na(age)) %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = age <= 18)) + 
+        geom_point() + 
+        coord_fixed() + 
+        ggtitle("age (sample collection)")
+      p2 <- tb_plot %>% 
+        dplyr::filter(!is.na(age_at_diagnosis.cat)) %>% 
+        ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                   y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                   color = age_at_diagnosis.cat)) + 
+        geom_point() + 
+        coord_fixed() + 
+        ggtitle("age (diagnosis)")
+      cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+        ggsave(filename = paste0(dir_output_tmp, 
+                                 "age", paste(axes, collapse = ""),".pdf"),
+               ., width = 12, height = 5)
+      
+      # treatment
+      colors_treatment <- gg_color_hue(c("y", "n"))
+      l_p <- c("CD", "UC") %>% 
+        purrr::map(function(i_disease) {
+          c("antibiotics", "immunosuppressants", 
+            "steroids", "mesalamine_5ASA") %>% 
+            purrr::map(function(i_treatment) {
+              tb_plot %>% 
+                dplyr::filter(disease == i_disease, 
+                              !is.na(!!rlang::sym(i_treatment))) %>% 
+                ggplot(aes(x = !!rlang::sym(paste0("Axis.", axes[1])),
+                           y = !!rlang::sym(paste0("Axis.", axes[2])), 
+                           color = !!rlang::sym(i_treatment))) +
+                geom_point() + 
+                coord_fixed() + 
+                ggtitle(paste0(i_disease, ", ", i_treatment)) +
+                scale_color_manual(values = colors_treatment)
+            })
+        }) %>% purrr::reduce(c)
+      cowplot::plot_grid(plotlist = l_p, nrow = 2) %>% 
+        ggsave(filename = paste0(dir_output_tmp,
+                                 "treatment", paste(axes, collapse = ""),".pdf"),
+               ., width = 20, height = 8)
+    })
+}
+```
+
+# Heatmap of top abundant taxa
+
+```{r heatmap}
+load("data/phyloseq/species_adj.RData")
+load("data/distance/bray/dist_species_adj.RData")
+tb_long <- phylo_species_adj %>% 
+  to_relativeAbundance() %>%
+  phyloseq_to_tb()
+tax_abd <- tb_long %>% 
+  dplyr::group_by(feature) %>% 
+  dplyr::summarise(mean_abundance = mean(abundance)) %>% 
+  dplyr::arrange(desc(mean_abundance)) %>% 
+  dplyr::slice(1:30) %>% 
+  extract2("feature")
+metadata <- sample_data2(phylo_species_adj)
+samples_order <- studies %>%
+  purrr::map(function(study) {
+    samples_tmp <- rownames(metadata)[metadata$dataset_name == study]
+    dist_tmp <- dist_species_adj %>% subset_distance(samples_tmp)
+    return(samples_tmp[hclust(dist_tmp, method = "average")$order])
+  }) %>% unlist()
+
+ha <- ComplexHeatmap::HeatmapAnnotation(
+  metadata[samples_order, "dataset_name", drop = FALSE],
+  col = list(dataset_name = c("RISK" = "black",
+                              "PROTECT" = "grey", 
+                              gg_color_hue(studies %>% 
+                                             setdiff(c("RISK", "PROTECT"))
+                                           )
+                              )
+             )
+  )
+mat_otu_plot <- otu_table2(to_relativeAbundance(phylo_species_adj))[tax_abd, samples_order] %>% 
+  apply(2, function(x) x / sum(x))
+tax_table_plot <- tax_table2(phylo_species_adj)[tax_abd, ] 
+rownames(mat_otu_plot) <- makeBetterTaxaNames(
+  order = tax_table_plot[, 4],
+  family = tax_table_plot[, 5],
+  genus = tax_table_plot[, 6],
+  species = tax_table_plot[, 7])
+mat_otu_plot[mat_otu_plot == 0] <- NA
+heatmap <- ComplexHeatmap::Heatmap(log10(mat_otu_plot),
+                                   col = circlize::colorRamp2(
+                                     c(min(log10(mat_otu_plot), na.rm = TRUE), 
+                                       median(log10(mat_otu_plot), na.rm = TRUE), 0),
+                                     c("blue", "black", "red")),
+                                   na_col = "white",
+                                   cluster_rows = TRUE, show_row_dend = FALSE,
+                                   cluster_columns = FALSE,
+                                   row_names_side = "left",
+                                   show_column_names = FALSE,
+                                   top_annotation = ha)
+pdf(paste0(dir_output, "heatmap.pdf"), width = 35, height = 10)
+ComplexHeatmap::draw(heatmap)
+dev.off()
+```
+# For studies that have batch information, compare before and after batch correction ordination
+```{r per-study batch ordination}
+distance_to_ordinate <- "bray"
+for(feature_level in c("genera", "species")) {
+  dir_output_tmp <- paste0(dir_output, "batch/", feature_level, "/")
+  dir.create(dir_output_tmp, recursive = TRUE, showWarnings = TRUE)
+  
+  for(study in c("BIDMC-FMT", "CS-PRISM", "LSS-PRISM", "MucosalIBD", "RISK")) {
+    load(paste0("data/ordinate/", distance_to_ordinate, "/ord_",
+                feature_level, "_", study, ".RData"))
+    load(paste0("data/ordinate/", distance_to_ordinate, "/ord_",
+                feature_level, "_", study, "_adjBatch.RData"))
+    phylo_tmp <- phyloseq::subset_samples(phylo_genera, dataset_name == study)
+    ordinate_before <- get(paste0("ord_", feature_level, "_", study))
+    ordinate_after <- get(paste0("ord_", feature_level, "_", study, "_adjBatch"))
+    list(1:2, 3:4) %>% # visualize the top four axes
+      purrr::walk(function(axes) {
+        # batch
+        p1 <- phyloseq::plot_ordination(phylo_tmp, 
+                                        ordinate_before, 
+                                        axes = axes,
+                                        color = "batch") +
+          coord_fixed()
+        p2 <- phyloseq::plot_ordination(phylo_genera, 
+                                        ordinate_after, 
+                                        axes = axes,
+                                        color = "batch") +
+          coord_fixed()
+        cowplot::plot_grid(p1, p2, nrow = 1) %>% 
+          ggsave(filename = paste0(dir_output_tmp, 
+                                   study, "_", paste(axes, collapse = ""),".pdf"),
+                 width = 15, height = 5)
+        
+      })
+  }
+}
+```
+

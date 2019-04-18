@@ -1,0 +1,146 @@
+---
+title: "3-Calculate distance measures; ordination visulization"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+# Overview
+These tasks are related and time consuming, so organize together in the same Rmd
+- Calcuate distance metrics
+- Perform ordination
+
+```{r setup, echo = FALSE}
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in list.files("functions/", full.names = TRUE)) {
+  source(i.function)
+}
+setup(getwd())
+# dir_output <- "results/3.1-distance_ordinate/"
+# dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+```
+
+```{r load phyloseq objects}
+load("data/phyloseq/genera.RData")
+load("data/phyloseq/genera_adjBatch.RData")
+load("data/phyloseq/genera_adj.RData")
+load("data/phyloseq/species.RData")
+load("data/phyloseq/species_adjBatch.RData")
+load("data/phyloseq/species_adj.RData")
+```
+
+# These are the distance metrics 
+
+```{r define distances}
+distances <- tibble::tibble(distance = c("jaccard", "bray", "jsd"),
+                            binary = c(TRUE, FALSE, FALSE))
+if(anyDuplicated(distances$distance))
+  stop("At this point distance measures should be either binary or continuous!")
+```
+
+# Calculate distances
+
+```{r calculate distance}
+ncores <- 6
+doParallel::registerDoParallel(cores = ncores)
+for(i in 1:nrow(distances)) {
+  i_distance <- distances$distance[i]
+  dir_output_tmp <- paste0("data/distance/", i_distance, "/")
+  dir.create(dir_output_tmp, recursive = TRUE, showWarnings = FALSE)
+  for(feature_level in c("genera", "species")) {
+    # calculate distance on the original matrix
+    phylo_tmp <- get(paste0("phylo_", feature_level)) %>% 
+      to_relativeAbundance()
+    dist_tmp <- phyloseq::distance(phylo_tmp, 
+                                   method = i_distance,
+                                   binary = distances$binary[i])
+    assign(paste0("dist_", feature_level), dist_tmp)
+    
+    if(distances$binary[i]) {
+      # if distance is binary then batch correction does not affect the dissimilarity
+      save(list = paste0("dist_", feature_level),
+           file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
+    } else {
+      # calculate distance on the batch-adjusted matrix
+      phylo_tmp <- get(paste0("phylo_", feature_level, "_adjBatch")) %>% 
+        to_relativeAbundance()
+      dist_tmp <- phyloseq::distance(phylo_tmp, 
+                                     method = i_distance,
+                                     binary = distances$binary[i])
+      assign(paste0("dist_", feature_level, "_adjBatch"), dist_tmp)
+      # calculate distance on the study-adjusted matrix
+      phylo_tmp <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+        to_relativeAbundance()
+      dist_tmp <- phyloseq::distance(phylo_tmp, 
+                                     method = i_distance,
+                                     binary = distances$binary[i])
+      assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
+      
+      save(list = paste0("dist_", feature_level),
+           file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
+      save(list = paste0("dist_", feature_level, "_adjBatch"),
+           file = paste0(dir_output_tmp, "dist_", feature_level, "_adjBatch.RData"))
+      save(list = paste0("dist_", feature_level, "_adj"),
+           file = paste0(dir_output_tmp, "dist_", feature_level, "_adj.RData"))
+    }
+  }
+}
+doParallel::stopImplicitCluster()
+```
+
+# Ordination
+
+```{r ordinate}
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+# At this point only ordinate the bray-curtis distance results
+distance_to_ordinate <- "bray"
+for(i_distance in distance_to_ordinate) {
+  dir_output_tmp <- paste0("data/ordinate/", i_distance, "/")
+  dir.create(dir_output_tmp, recursive = TRUE, showWarnings = TRUE)
+  for(feature_level in c("genera", "species")) {
+    load(paste0("data/distance/", 
+                i_distance, "/dist_", feature_level,
+                ".RData"))
+    load(paste0("data/distance/", 
+                i_distance, "/dist_", feature_level,
+                "_adjBatch.RData"))
+    load(paste0("data/distance/", 
+                i_distance, "/dist_", feature_level,
+                "_adj.RData"))
+    # for ordination phylo_genera is okay before metadata is shared
+    # ordinate original data
+    dist_tmp <- get(paste0("dist_", feature_level))
+    ordinate_tmp <- phyloseq::ordinate(phylo_genera, dist_tmp, method = "MDS")
+    assign(paste0("ord_", feature_level), ordinate_tmp)
+    # ordinate fully adjusted data
+    dist_tmp <- get(paste0("dist_", feature_level, "_adj"))
+    ordinate_tmp <- phyloseq::ordinate(phylo_genera, dist_tmp, method = "MDS")
+    assign(paste0("ord_", feature_level, "_adj"), ordinate_tmp)
+    save(list = paste0("ord_", feature_level), 
+         file = paste0(dir_output_tmp, "ord_", feature_level, ".RData"))
+    save(list = paste0("ord_", feature_level, "_adj"), 
+         file = paste0(dir_output_tmp, "ord_", feature_level, "_adj.RData"))
+    # for dataset with batch variable, ordinate before and after batch adjustment
+    for(study in c("BIDMC-FMT", "CS-PRISM", "LSS-PRISM", "MucosalIBD", "RISK")) {
+      phylo_tmp <- phyloseq::subset_samples(phylo_genera, dataset_name %in% study)
+      # ordinate original data
+      dist_tmp <- get(paste0("dist_", feature_level)) %>% 
+        subset_distance(phyloseq::sample_names(phylo_tmp))
+      ordinate_tmp <- phyloseq::ordinate(phylo_tmp, dist_tmp, method = "MDS")
+      assign(paste0("ord_", feature_level, "_", study), ordinate_tmp)
+      dist_tmp <- get(paste0("dist_", feature_level, "_adjBatch")) %>% 
+        subset_distance(phyloseq::sample_names(phylo_tmp))
+      ordinate_tmp <- phyloseq::ordinate(phylo_tmp, dist_tmp, method = "MDS")
+      assign(paste0("ord_", feature_level, "_", study, "_adjBatch"), ordinate_tmp)
+      save(list = paste0("ord_", feature_level, "_", study), 
+         file = paste0(dir_output_tmp, "ord_", feature_level, "_", study, ".RData"))
+    save(list = paste0("ord_", feature_level, "_", study, "_adjBatch"), 
+         file = paste0(dir_output_tmp, "ord_", feature_level, "_", study, "_adjBatch.RData"))
+    }
+  }
+}
+```

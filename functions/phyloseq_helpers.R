@@ -116,17 +116,7 @@ kOverA2 <- function(k = 1, A = 0) {
   } 
 }
 
-# Helper function for getting relative abundance
-# Useful when possible samples are all zero
-tss <- function(x) {
-  if(all(x == 0)) return(x)
-  return(x / sum(x))
-}
-
-makeBetterTaxaNames <- function(family, genus, species) {
-  # family <- !!family
-  # genus <- !!genus
-  # species <- !!species
+makeBetterTaxaNames <- function(order, family, genus, species) {
   dplyr::case_when(
     species != "s__" ~ paste(genus %>% 
                                stringr::str_replace_all(stringr::fixed("g__"), ""),
@@ -138,20 +128,23 @@ makeBetterTaxaNames <- function(family, genus, species) {
     family != "f__" ~ paste0(family %>% 
                               stringr::str_replace_all(stringr::fixed("f__"), ""),
                             "(f) unclassified"),
-    TRUE ~ "unclassified at family"
+    order != "o__" ~ paste0(order %>% 
+                               stringr::str_replace_all(stringr::fixed("o__"), ""),
+                             "(o) unclassified"),
+    TRUE ~ "unclassified at order"
   )
 }
 
-makeBetterTaxaNamesGenera <- function(family, genus) {
-  # family <- !!family
-  # genus <- !!genus
-  # species <- !!species
+makeBetterTaxaNamesGenera <- function(order, family, genus) {
   dplyr::case_when(
     genus != "g__" ~ genus %>% stringr::str_replace_all(stringr::fixed("g__"), ""),
     family != "f__" ~ paste0(family %>% 
                                stringr::str_replace_all(stringr::fixed("f__"), ""),
                              "(f) unclassified"),
-    TRUE ~ "unclassified at family"
+    order != "o__" ~ paste0(order %>% 
+                              stringr::str_replace_all(stringr::fixed("o__"), ""),
+                            "(o) unclassified"),
+    TRUE ~ "unclassified at order"
   )
 }
 
