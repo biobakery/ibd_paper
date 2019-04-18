@@ -193,6 +193,7 @@ ncores <- 20
 load("data/distance/bray/dist_genera.RData")
 load("data/distance/bray/dist_genera_adj.RData")
 load("data/distance/bray/dist_genera_adjBatch.RData")
+start.time <- Sys.time()
 for(i_run in (1:nrow(tb_permanova))) {
   i_tb_permanova <- tb_permanova[i_run, ]
   
@@ -306,4 +307,5 @@ for(i_run in (1:nrow(tb_permanova))) {
   save(adonis_fit, file = paste0("results/4.1-permanova/adonis_fit_",
                                  i_run, ".RData"))
 }
+print(Sys.time() - start.time)
 ```

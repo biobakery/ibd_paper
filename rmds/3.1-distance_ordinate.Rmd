@@ -47,6 +47,7 @@ if(anyDuplicated(distances$distance))
 ```{r calculate distance}
 ncores <- 20
 doParallel::registerDoParallel(cores = ncores)
+start.time <- Sys.time()
 for(i in 1:nrow(distances)) {
   i_distance <- distances$distance[i]
   dir_output_tmp <- paste0("data/distance/", i_distance, "/")
@@ -57,7 +58,8 @@ for(i in 1:nrow(distances)) {
       to_relativeAbundance()
     dist_tmp <- phyloseq::distance(phylo_tmp, 
                                    method = i_distance,
-                                   binary = distances$binary[i])
+                                   binary = distances$binary[i],
+                                   parallel=TRUE)
     assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
     
     if(i_distance != "bray") {
@@ -71,7 +73,8 @@ for(i in 1:nrow(distances)) {
         to_relativeAbundance()
       dist_tmp <- phyloseq::distance(phylo_tmp, 
                                      method = i_distance,
-                                     binary = distances$binary[i])
+                                     binary = distances$binary[i],
+                                     parallel=TRUE)
       assign(paste0("dist_", feature_level), dist_tmp)
       
       # calculate distance on the batch-adjusted matrix
@@ -79,7 +82,8 @@ for(i in 1:nrow(distances)) {
         to_relativeAbundance()
       dist_tmp <- phyloseq::distance(phylo_tmp, 
                                      method = i_distance,
-                                     binary = distances$binary[i])
+                                     binary = distances$binary[i],
+                                     parallel=TRUE)
       assign(paste0("dist_", feature_level, "_adjBatch"), dist_tmp)
       
       save(list = paste0("dist_", feature_level),
@@ -92,6 +96,7 @@ for(i in 1:nrow(distances)) {
   }
 }
 doParallel::stopImplicitCluster()
+print(Sys.time() - start.time)
 ```
 
 # Ordination
@@ -100,6 +105,7 @@ doParallel::stopImplicitCluster()
 dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
 # At this point only ordinate the bray-curtis distance results
 distance_to_ordinate <- "bray"
+start.time <- Sys.time()
 for(i_distance in distance_to_ordinate) {
   dir_output_tmp <- paste0("data/ordinate/", i_distance, "/")
   dir.create(dir_output_tmp, recursive = TRUE, showWarnings = TRUE)
@@ -145,4 +151,5 @@ for(i_distance in distance_to_ordinate) {
     }
   }
 }
+print(Sys.time() - start.time)
 ```
