@@ -92,6 +92,47 @@ tb_filter_summary <- tb_filter %>%
                  dplyr::desc(cutoff_abundance), dplyr::desc(cutoff_prevalence)) %>%
   readr::write_tsv(path = paste0(dir_output, "filter_summarise.tsv")) 
 
+# What if filtering is based on number of samples instead of percentages?
+cutoff_abundance <- c(1e-5, 1e-4, 1e-3)
+cutoff_n <- c(2, 5, 10)
+tb_param_n <-  tidyr::crossing(cutoff_abundance, cutoff_n)
+tb_filter <- (1:nrow(tb_param_n)) %>% 
+  purrr::map_dfr(function(i_param) {
+    cutoff_abundance <- tb_param_n$cutoff_abundance[i_param]
+    cutoff_n <- tb_param_n$cutoff_n[i_param]
+    list(phylo_genera,
+         phylo_species) %>% 
+      purrr::map2_dfr(c("genera", "species"), 
+                      function(phylo, feature_level) {
+                        phylo_rel <- phylo %>% 
+                          to_relativeAbundance()
+                        tb_presence <- phylo_rel %>% 
+                          phyloseq_to_tb() %>% 
+                          dplyr::group_by(feature, dataset_name) %>% 
+                          dplyr::summarise(
+                            n = n(),
+                            present = sum(abundance > cutoff_abundance) >= 
+                              cutoff_n
+                          ) %>% 
+                          dplyr::ungroup()
+                        tb_presence %>% 
+                          dplyr::group_by(feature) %>% 
+                          dplyr::summarise(n_study = sum(present)) %>% 
+                          dplyr::mutate(cutoff_abundance = cutoff_abundance,
+                                        cutoff_n = cutoff_n,
+                                        feature_level = feature_level)
+                      })
+  })
+# tb_filter %>%
+#   readr::write_tsv(path = paste0(dir_output, "filter.tsv"))
+tb_filter_summary_n <- tb_filter %>%
+  dplyr::group_by(feature_level, cutoff_abundance, cutoff_prevalence) %>%
+  dplyr::summarise(nfeature = n(),
+                   nfeature_nonUnique = sum(n_study > 1),
+                   nfeature_unique = sum(n_study == 1)) %>%
+  dplyr::arrange(feature_level,
+                 dplyr::desc(cutoff_abundance), dplyr::desc(cutoff_prevalence)) %>%
+  readr::write_tsv(path = paste0(dir_output, "filter_summarise_n.tsv")) 
 
 phylo_genera <- 
   tb_filter %>% 
