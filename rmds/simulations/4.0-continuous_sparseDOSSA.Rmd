@@ -63,15 +63,16 @@ tb_sim <- tb_simSetup %>%
   dplyr::group_by(1:n()) %>% 
   dplyr::mutate(df_metadata = list(generate_continuous_structure(nSample = nSample,
                                                                  nBatch = nBatch)),
-                spikein.mt = list(create_spikein.mt(number_features = nMicrobe,
-                                                    percent_spiked = spikeMicrobes,
-                                                    effectSize = 
-                                                      create_effectSize(effectSize = effectSize[[1]],
-                                                                        df_metadata = df_metadata[[1]],
-                                                                        metadata_type = metadata_type,
-                                                                        fDummyData = fDummyData,
-                                                                        fDummyDirection = fDummyDirection),
-                                                    seed = rep))) %>% 
+                spikein.mt = list(create_spikein.mt(
+                  number_features = nMicrobe,
+                  percent_spiked = spikeMicrobes,
+                  effectSize = 
+                    create_effectSize(effectSize = effectSize[[1]],
+                                      df_metadata = df_metadata[[1]],
+                                      metadata_type = metadata_type,
+                                      fDummyData = fDummyData,
+                                      fDummyDirection = fDummyDirection),
+                  seed = rep))) %>% 
   dplyr::ungroup()
 save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
 N <- nrow(tb_sim)
