@@ -93,6 +93,7 @@ save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
 set.seed(1)
 N <- nrow(tb_sim)
 doParallel::registerDoParallel(ncores)
+start.time <- Sys.time()
 l_sparseDOSSA <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
   {
@@ -129,4 +130,5 @@ l_sparseDOSSA <- foreach::`%dopar%`(
 )
 doParallel::stopImplicitCluster()
 save(l_sparseDOSSA, file = paste0(dir_output, "sparseDOSSA.RData"))
+print(Sys.time() - start.time)
 ```

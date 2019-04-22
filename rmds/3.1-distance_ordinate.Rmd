@@ -102,7 +102,6 @@ print(Sys.time() - start.time)
 # Ordination
 
 ```{r ordinate}
-dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
 # At this point only ordinate the bray-curtis distance results
 distance_to_ordinate <- "bray"
 start.time <- Sys.time()
