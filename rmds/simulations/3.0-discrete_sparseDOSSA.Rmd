@@ -27,11 +27,11 @@ dir.create(paste0(dir_output, "sparseDOSSA_sets/"), recursive = TRUE,
 ncores <- 20
 # sample size
 nBatch <- c(2, 4, 6, 8)
-nCluster <- c(3, 4, 5, 6, 7, 8)
+nCluster <- c(3, 4, 5, 6)
 nSample <- c(1000)
 # feature size
 nMicrobe <- c(1000)
-spikeMicrobes <- c(0.2)
+spikeMicrobes <- c(0.1)
 # metadata specification
 metadata_type <- c("batch" = "factor",
                    "cluster" = "factor")
@@ -86,8 +86,9 @@ N <- nrow(tb_sim)
 ```
 
 ```{r run sparseDOSSA}
-doParallel::registerDoParallel(ncores)
 set.seed(1)
+start.time <- Sys.time()
+doParallel::registerDoParallel(ncores)
 l_sparseDOSSA <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
   {
@@ -124,4 +125,5 @@ l_sparseDOSSA <- foreach::`%dopar%`(
 ) 
 doParallel::stopImplicitCluster()
 save(l_sparseDOSSA, file = paste0(dir_output, "sparseDOSSA.RData"))
+print(Sys.time() - start.time)
 ```
