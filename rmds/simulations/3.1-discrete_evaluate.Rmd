@@ -58,7 +58,6 @@ results <- foreach::`%dopar%`(
     R2_batch <- vegan::adonis(D ~ batch,
                               data = sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
-    
     pred.str <-
       fpc::prediction.strength(
         xdata = D,
