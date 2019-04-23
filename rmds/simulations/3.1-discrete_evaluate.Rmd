@@ -30,6 +30,7 @@ load(paste0(dir_output, "tb_sim.RData"))
 
 ```{r evaluate metrics before correction}
 N <- nrow(tb_sim)
+start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
@@ -77,11 +78,13 @@ results <- foreach::`%dopar%`(
 ) 
 doParallel::stopImplicitCluster()
 save(results, file = paste0(dir_output, "evaluate_before.RData"))
+print(Sys.time() - start.time)
 ```
 
 
 ```{r batch correction and evaluate metrics after correction}
 rm(results)
+start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_correct <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
@@ -135,4 +138,5 @@ results_correct <- foreach::`%dopar%`(
 )
 doParallel::stopImplicitCluster()
 save(results_correct, file = paste0(dir_output, "evaluate_after.RData"))
+print(Sys.time() - start.time)
 ```
