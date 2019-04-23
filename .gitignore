@@ -5,6 +5,7 @@
 *.Ruserdata
 *.DS_Store
 *.html
+attic
 data
 results
 figures
