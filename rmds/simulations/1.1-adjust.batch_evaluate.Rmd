@@ -27,6 +27,7 @@ load(paste0(dir_output, "tb_sim.RData"))
 
 ```{r calculate R2 before adjustment}
 N <- nrow(tb_sim)
+start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results <-  foreach::`%dopar%` (
   foreach::foreach(i = 1:N), 
@@ -70,9 +71,11 @@ results <-  foreach::`%dopar%` (
 )
 doParallel::stopImplicitCluster()
 save(results, file = paste0(dir_output, "evaluate_before.RData"))
+print(Sys.time() - start.time)
 ```
 
 ```{r batch adjustment}
+start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_correct <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
@@ -126,9 +129,11 @@ results_correct <- foreach::`%dopar%`(
 ) 
 doParallel::stopImplicitCluster()
 save(results_correct, file = paste0(dir_output, "evaluate_after.RData"))
+print(Sys.time() - start.time)
 ```
 
 ```{r ComBat}
+start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_ComBat <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
@@ -186,6 +191,7 @@ results_ComBat <- foreach::`%dopar%`(
 )  
 doParallel::stopImplicitCluster()
 save(results_ComBat, file = paste0(dir_output, "evaluate_ComBat.RData"))
+print(Sys.time() - start.time)
 ```
 
 ```{r quantile norm}
