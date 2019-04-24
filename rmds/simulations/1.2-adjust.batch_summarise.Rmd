@@ -17,70 +17,97 @@ for(i.function in c(list.files("functions/", full.names = TRUE),
 }
 setup("./")
 dir_output <- "results/simulations/adjust.batch/"
-dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
 
 ```{r load data}
 load(paste0(dir_output, "tb_sim.RData"))
-tb_sim <- tb_sim %>% 
-  dplyr::mutate(effect_poscontrol = effectSize %>% 
-                  purrr::map_dbl("positive_control1"),
-                effect_batch = effectSize %>% 
-                  purrr::map_dbl("batch"),
-                i = `1:n()`) %>% 
-  dplyr::select(-`1:n()`)
 load(paste0(dir_output, "evaluate_before.RData"))
 load(paste0(dir_output, "evaluate_after.RData"))
 load(paste0(dir_output, "evaluate_ComBat.RData"))
 # load(paste0(dir_output, "evaluate_qnorm.RData"))
 ```
 
-```{r summarise results and plot}
-# colors <- gg_color_hue(n=3)
-# colors_simulation_adjust.batch <- c("Original" = "black",
-#                                     "ComBat corrected" = colors[3],
-#                                     "Quantile corrected" = colors[2],
-#                                     "MMUPHin corrected" = colors[1])
+```{r format simulation set up}
+tb_sim <- tb_sim %>% 
+  dplyr::mutate(effect_poscontrol = effectSize %>% 
+                  purrr::map_dbl("positive_control1"),
+                effect_batch = effectSize %>% 
+                  purrr::map_dbl("batch") %>% 
+                  factor(levels = c(1, 2, 5, 10)))
+
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nSample, nBatch) %>% 
+  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+                                        "nBatch = ", nBatch) %>% 
+                  factor(levels = unique(.)))
+
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
+  dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
+                                            spikeMicrobes*100, "% spiked") %>% 
+                  factor(levels = unique(.)))
+```
+
+```{r summarise results}
 tb_R2 <- list(results, 
               results_ComBat, 
               # results_qnorm, 
               results_correct) %>% 
   purrr::map2_dfr(names(colors_simulation_adjust.batch), 
                   ~ .x %>% 
-                    purrr::imap_dfr(~ data.frame(R2_positive_control1 = .x$R2["positive_control1"],
-                                                 R2_positive_control2 = .x$R2["positive_control2"],
-                                                 R2_negative_control = .x$R2["negative_control"],
-                                                 R2_batch = .x$R2["batch"],
-                                                 i = .y)) %>% 
-                    data.frame(Data = .y)) %>% 
-  dplyr::left_join(tb_sim, by = "i") %>% 
-  # dplyr::filter(effect_poscontrol == 5,
-  #               nMicrobe == 1000,
-  #               spikeMicrobes == 0.2,
-  #               nBatch == 4,
-  #               nSample == 1000) %>% 
+                    purrr::imap_dfr(
+                      ~ data.frame(R2_positive_control1 = .x$R2["positive_control1"],
+                                   R2_positive_control2 = .x$R2["positive_control2"],
+                                   R2_negative_control = .x$R2["negative_control"],
+                                   R2_batch = .x$R2["batch"],
+                                   i = .y)) %>% 
+                    data.frame(Data = .y)) %>%
   tidyr::gather(key = "Variable",
                 value = "R2",
-                R2_batch, R2_positive_control1, R2_positive_control2, R2_negative_control) %>% 
+                R2_batch, R2_positive_control1, 
+                R2_positive_control2, R2_negative_control) %>% 
   dplyr::mutate(Variable = Variable %>% 
-                  dplyr::recode_factor("R2_batch" = "Batch",
-                                       "R2_positive_control1" = "Positive control (binary)",
-                                       "R2_positive_control2" = "Positive control (continuous)",
-                                       "R2_negative_control" = "Negative control"),
+                  dplyr::recode_factor(
+                    "R2_batch" = "Batch",
+                    "R2_positive_control1" = "Positive control (binary)",
+                    "R2_positive_control2" = "Positive control (continuous)",
+                    "R2_negative_control" = "Negative control"),
                 Data = factor(Data, levels = names(colors_simulation_adjust.batch)))
-p <- tb_R2 %>% 
-  ggplot(aes(x = as.factor(effect_batch),
-             y = R2,
-             color = Data)) +
-  geom_boxplot() +
-  scale_color_manual(values = colors_simulation_adjust.batch) +
-  facet_grid(.~Variable) +
-  xlab("Simulated strength of batch effect") +
-  theme(axis.title = element_text(size = 12),
-        axis.text = element_text(size = 12),
-        legend.position = c(0, 1),
-        legend.justification = c(0, 1),
-        legend.background = element_blank())
-ggsave(filename = paste0(dir_output, "with_qnorm.pdf"),
-       p, width = 8, height = 4)
+```
+
+```{r plot}
+# colors <- gg_color_hue(n=3)
+# colors_simulation_adjust.batch <- c("Original" = "black",
+#                                     "ComBat corrected" = colors[3],
+#                                     "Quantile corrected" = colors[2],
+#                                     "MMUPHin corrected" = colors[1])
+tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i")
+for(i.effect in unique(tb_plot$effect_poscontrol)) {
+  plist <- (1:nlevels(tb_plot$Variable)) %>% 
+    purrr::map(function(i) {
+      i.Variable <- levels(tb_plot$Variable)[i]
+      p <- tb_plot %>% 
+        dplyr::filter(Variable == i.Variable,
+                      effect_poscontrol == i.effect) %>% 
+        ggplot(aes(x = effect_batch, y = R2, color = Data)) +
+        geom_boxplot() +
+        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+        scale_color_manual(values = colors_simulation_adjust.batch) +
+        theme(legend.position = c(0, 1),
+              legend.justification = c(0, 1),
+              legend.background = element_blank(),
+              strip.text = element_text(size = 8),
+              legend.text = element_text(size = 8)) +
+        xlab("Batch effect") +
+        ggtitle(i.Variable)
+      if(i >= 2)
+        p <- p + theme(legend.position = "none")
+      return(p)
+    })
+  cowplot::plot_grid(plotlist = plist,
+                     nrow = 2) %>% 
+    ggsave(paste0(dir_output, "summary_effectpos_", i.effect, ".pdf"),
+           .,
+           width = 30, height = 30)
+}
 ```

@@ -49,7 +49,6 @@ fDummyDirection <- TRUE
 noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
-  rep,
   nBatch,
   nSample,
   nMicrobe,
@@ -58,7 +57,10 @@ tb_simSetup <- tidyr::crossing(
   tb_metadataType,
   disparity,
   effectSize
-)
+) %>% 
+  dplyr::mutate(i_setup = 1:n()) %>% 
+  tidyr::crossing(rep) %>% 
+  dplyr::mutate(i = 1:n())
 ```
 
 ```{r simulate metadata}
@@ -70,7 +72,7 @@ exposure <- function(batch, disparity) { # helper funciton for simulating exposu
   return(exposure)
 }
 tb_sim <- tb_simSetup %>% 
-  dplyr::group_by(1:n()) %>% 
+  dplyr::group_by(i) %>% 
   dplyr::mutate(df_metadata = list(
     data.frame(batch = sample.int(nBatch, size = nSample, replace = TRUE) %>%
                  as.factor(),
@@ -87,7 +89,7 @@ tb_sim <- tb_simSetup %>%
       create_spikein.mt(number_features = nMicrobe,
                         percent_spiked = spikeMicrobes,
                         effectSize = .,
-                        seed = `1:n()`) %>%
+                        seed = i) %>%
       list()) %>% 
   dplyr::ungroup()
 save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
@@ -120,7 +122,7 @@ l_sparseDOSSA <- foreach::`%dopar%`(
         dplyr::ungroup(),
       noZeroInflate = i_simSetup$noZeroInflate,
       percent_spiked = i_simSetup$spikeMicrobes,
-      seed = i_simSetup$`1:n()`,
+      seed = i_simSetup$i,
       minLevelPercent = 0,
       write_table = FALSE,
       verbose = FALSE) %>%
