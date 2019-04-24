@@ -131,6 +131,6 @@ l_sparseDOSSA <- foreach::`%dopar%`(
   }
 )
 doParallel::stopImplicitCluster()
-save(l_sparseDOSSA, file = paste0(dir_output, "sparseDOSSA.RData"))
+# save(l_sparseDOSSA, file = paste0(dir_output, "sparseDOSSA.RData"))
 print(Sys.time() - start.time)
 ```

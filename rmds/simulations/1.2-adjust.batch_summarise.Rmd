@@ -28,19 +28,20 @@ load(paste0(dir_output, "evaluate_ComBat.RData"))
 ```
 
 ```{r format simulation set up}
+# effect sizes
 tb_sim <- tb_sim %>% 
   dplyr::mutate(effect_poscontrol = effectSize %>% 
                   purrr::map_dbl("positive_control1"),
                 effect_batch = effectSize %>% 
                   purrr::map_dbl("batch") %>% 
                   factor(levels = c(1, 2, 5, 10)))
-
+# nSample and nBatch
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nSample, nBatch) %>% 
   dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
                                         "nBatch = ", nBatch) %>% 
                   factor(levels = unique(.)))
-
+# nMicrobe and percMicrobe spiked
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
   dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
@@ -49,30 +50,30 @@ tb_sim <- tb_sim %>%
 ```
 
 ```{r summarise results}
-tb_R2 <- list(results, 
-              results_ComBat, 
-              # results_qnorm, 
-              results_correct) %>% 
-  purrr::map2_dfr(names(colors_simulation_adjust.batch), 
-                  ~ .x %>% 
-                    purrr::imap_dfr(
-                      ~ data.frame(R2_positive_control1 = .x$R2["positive_control1"],
-                                   R2_positive_control2 = .x$R2["positive_control2"],
-                                   R2_negative_control = .x$R2["negative_control"],
-                                   R2_batch = .x$R2["batch"],
-                                   i = .y)) %>% 
-                    data.frame(Data = .y)) %>%
-  tidyr::gather(key = "Variable",
-                value = "R2",
-                R2_batch, R2_positive_control1, 
-                R2_positive_control2, R2_negative_control) %>% 
-  dplyr::mutate(Variable = Variable %>% 
-                  dplyr::recode_factor(
-                    "R2_batch" = "Batch",
-                    "R2_positive_control1" = "Positive control (binary)",
-                    "R2_positive_control2" = "Positive control (continuous)",
-                    "R2_negative_control" = "Negative control"),
-                Data = factor(Data, levels = names(colors_simulation_adjust.batch)))
+# aggregate results into df format
+tb_R2 <- list(results, results_ComBat, results_correct) %>% 
+  purrr::map2_dfr(
+    names(colors_simulation_adjust.batch),
+    ~ .x %>% 
+      purrr::imap_dfr(
+        ~ tibble::tibble(Variable = names(.x$R2),
+                         R2 = .x$R2,
+                         i = .y)
+      ) %>% 
+      dplyr::mutate(Data = .y)
+    ) 
+# format variables
+tb_R2 <- tb_R2 %>% 
+  dplyr::mutate(
+    Variable = Variable %>% 
+      dplyr::recode_factor(
+        "batch" = "Batch",
+        "positive_control1" = "Positive control (binary)",
+        "positive_control2" = "Positive control (continuous)",
+        "negative_control" = "Negative control"
+      ),
+    Data = factor(Data, levels = names(colors_simulation_adjust.batch))
+  )
 ```
 
 ```{r plot}
