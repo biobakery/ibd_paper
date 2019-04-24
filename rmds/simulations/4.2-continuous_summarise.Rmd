@@ -1,0 +1,298 @@
+---
+title: "Summarise continuous structure discovery"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+html_document:
+df_print: paged
+---
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+rm(list = ls())
+for(i.function in c(list.files("functions/", full.names = TRUE),
+                    list.files("functions/simulations/", full.names = TRUE))) {
+  source(i.function)
+}
+setup("./")
+dir_output <- "results/simulations/continuous/"
+```
+
+```{r load data}
+load(paste0(dir_output, "tb_sim.RData"))
+load(paste0(dir_output, "evaluate_before.RData"))
+load(paste0(dir_output, "evaluate_after.RData"))
+```
+```{r format simulation set up}
+# effect sizes
+tb_sim <- tb_sim %>% 
+  dplyr::mutate(effect_score = effectSize %>% 
+                  purrr::map_dbl("score") %>% 
+                  factor(levels = c(5, 10)),
+                effect_batch = effectSize %>%
+                  purrr::map_dbl("batch") %>% 
+                  factor(levels = 0:10))
+# nSample and nBatch
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nSample, nBatch) %>% 
+  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+                                        "nBatch = ", nBatch) %>% 
+                  factor(levels = unique(.)))
+# nMicrobe and percMicrobe spiked
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
+  dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
+                                            spikeMicrobes*100, "% spiked") %>% 
+                  factor(levels = unique(.)))
+```
+```{r summarise results}
+# R2 sanity check
+# aggregate results into df format
+tb_R2 <- list(results, results_correct) %>% 
+  purrr::map2_dfr(
+    names(colors_base),
+    ~ .x %>% 
+      purrr::imap_dfr(
+        ~ tibble::tibble(Variable = names(.x$R2),
+                         R2 = .x$R2,
+                         i = .y)
+      ) %>% 
+      dplyr::mutate(Data = .y)
+    ) 
+# format variables
+tb_R2 <- tb_R2 %>% 
+  dplyr::mutate(Variable = factor(Variable, 
+                                  levels = c("batch", "score")),
+                Data = factor(Data, levels = names(colors_base)))
+# continuous results
+# aggregate results into df format
+tb_results <- list(results, results_correct) %>% 
+  purrr::map2_dfr(
+    names(colors_simulation_continuous),
+    ~ .x %>% 
+      purrr::imap_dfr(
+        ~ tibble::tibble(results = list(.x$fit.continuous),
+                         i = .y)
+      ) %>% 
+      dplyr::mutate(Data = .y)
+  ) 
+# sanity check
+# all simulation runs managed to find continuous structure
+mean(tb_results$results %>% purrr::map_lgl(~is.null(.x)))
+# format results
+tb_summary <- tb_results %>% 
+  dplyr::mutate(Data = factor(Data, levels = names(colors_simulation_continuous)),
+                Cor = results %>% 
+                  purrr::map_dbl("correlation"))
+```
+
+
+```{r plot}
+# R2 sanity check
+tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
+  dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
+for(i.effect in levels(tb_plot$effect_score)) {
+  plist <- (1:nlevels(tb_plot$Variable)) %>% 
+    purrr::map(function(i) {
+      i.Variable <- levels(tb_plot$Variable)[i]
+      p <- tb_plot %>% 
+        dplyr::filter(Variable == i.Variable,
+                      effect_score == i.effect) %>% 
+        ggplot(aes(x = effect_batch, y = R2, color = Data)) +
+        geom_boxplot() +
+        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+        scale_color_manual(values = colors_simulation_adjust.batch) +
+        theme(legend.position = c(0, 1),
+              legend.justification = c(0, 1),
+              legend.background = element_blank(),
+              strip.text = element_text(size = 8),
+              legend.text = element_text(size = 8)) +
+        xlab("Batch effect") +
+        ggtitle(i.Variable)
+      if(i >= 2)
+        p <- p + theme(legend.position = "none")
+      return(p)
+    })
+  cowplot::plot_grid(plotlist = plist,
+                     nrow = 1) %>% 
+    ggsave(paste0(dir_output, 
+                  "R2_effecScore_", 
+                  as.numeric(i.effect), 
+                  ".pdf"),
+           .,
+           width = 15, height = 5)
+}
+
+# summary plot
+tb_plot <- tb_summary %>% 
+  dplyr::left_join(tb_sim, 
+                   by = "i") %>% 
+  dplyr::filter(!(effect_batch == 0 &
+                  Data == "MMUPHin corrected, MMUPHin analyzed"))
+plist <- (1:nlevels(tb_sim$effect_score)) %>% 
+    purrr::map(function(i) {
+      i.effect <- levels(tb_sim$effect_score)[i]
+      p <- tb_plot %>% 
+        dplyr::filter(effect_score == i.effect) %>% 
+        ggplot(aes(x = effect_batch, y = abs(Cor), color = Data)) +
+        geom_boxplot() +
+        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+        scale_color_manual(values = colors_simulation_continuous) +
+        theme(legend.position = c(1, 1),
+              legend.justification = c(1, 1),
+              legend.background = element_blank(),
+              legend.title = element_blank(),
+              strip.text = element_text(size = 8),
+              legend.text = element_text(size = 8)) +
+        xlab("Batch effect") +
+        ylab("Correlation") +
+        ggtitle(paste0("Effect of Score  = ", 
+                       i.effect %>%  
+                         as.numeric))
+      if(i >= 2)
+        p <- p + theme(legend.position = "none")
+      return(p)
+    })
+cowplot::plot_grid(plotlist = plist,
+                     nrow = 1) %>% 
+    ggsave(paste0(dir_output, "summary.pdf"),
+           .,
+           width = 15, height = 5)
+```
+
+```{r find example case}
+is <- tb_sim %>% 
+  dplyr::filter(effect_batch == 5, effect_score == 10,
+                nBatch == 4, nSample == 1000) %>% 
+  extract2("i")
+for(i in is) {
+  mat_otu <- read.table(paste0(dir_output,
+                               "sparseDOSSA_sets/",
+                               i, ".tsv"),
+                        header = TRUE,
+                        sep = "\t") %>% 
+    as.matrix
+  row.names(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
+  i_simSetup <- tb_sim[i, ]
+  df_metadata <- tb_sim[i, ]$df_metadata[[1]]
+  
+  phylo <- phyloseq::phyloseq(
+    phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+    sample_data(df_metadata)) %>%
+    transform_sample_counts(MMUPHin:::tss) %>%
+    prune_taxaSamples()
+  
+  mat_otu_adj <- mat_otu %>% 
+    MMUPHin::adjust.batch(batch = "batch", 
+                          data = df_metadata,
+                          diagnostics = FALSE, 
+                          verbose = FALSE)
+  phylo_adj <- phyloseq::phyloseq(
+    phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
+    sample_data(df_metadata)) %>%
+    transform_sample_counts(MMUPHin:::tss) %>%
+    prune_taxaSamples()
+  
+  l_p <- list(phylo, phylo_adj) %>% 
+    purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
+      ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
+      list(cluster = plot_ordination(phylo, ordination = ordination, color = "score") +
+             ggtitle(Data),
+           batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
+             ggtitle(Data))
+    })
+  
+  cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
+                                     l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
+    ggsave(filename = paste0(dir_output, "example_ordination_", i, ".pdf"),
+           .,
+           width = 10, height = 8)
+  
+  loading_before <- results[[i]]$fit.continuous$fit.continuous$consensus.loading
+  loading_after <- results_correct[[i]]$fit.continuous$fit.continuous$consensus.loading
+  score_learned_before <- otu_table2(phylo) %>% sqrt() %>% asin() %>% t() %>% 
+    `%*%`(loading_before)
+  score_learned_after <- otu_table2(phylo_adj) %>% sqrt() %>% asin() %>% t() %>% 
+    `%*%`(loading_after)
+  ps_score <- list(score_learned_before, score_learned_after) %>% 
+    purrr::map2(c("Original", "MMUPHin corrected"),
+                function(score, data) {
+                  tibble::tibble(`Score (Truth)` = df_metadata$score,
+                                 `Score (Learned)` = score[, 1]) %>% 
+                    ggplot(aes(x = `Score (Truth)`, y = `Score (Learned)`)) +
+                    geom_point() +
+                    xlab("Score (Truth)") + ylab("Score (Learned)") +
+                    ggtitle(data)
+                })
+  cowplot::plot_grid(plotlist = ps_score, nrow = 2) %>% 
+    ggsave(filename = paste0(dir_output, "Score_", i, ".pdf"),
+           .,
+           width = 5, height = 10)
+  
+  prcomp_before <- prcomp(otu_table2(phylo) %>% sqrt() %>% asin() %>% t())$x[, 1]
+  prcomp_after <- prcomp(otu_table2(phylo_adj) %>% sqrt() %>% asin() %>% t())$x[, 1]
+  ggplot(data.frame())
+  plot(prcomp_after, df_metadata$score)
+}
+is <- tb_sim %>% 
+  dplyr::filter(effect_batch == 0, effect_score == 10,
+                nBatch == 4, nSample == 1000) %>% 
+  extract2("i")
+for(i in is) {
+  mat_otu <- read.table(paste0(dir_output,
+                               "sparseDOSSA_sets/",
+                               i, ".tsv"),
+                        header = TRUE,
+                        sep = "\t") %>% 
+    as.matrix
+  row.names(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
+  i_simSetup <- tb_sim[i, ]
+  df_metadata <- tb_sim[i, ]$df_metadata[[1]]
+  
+  
+  phylo <- phyloseq::phyloseq(
+    phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+    sample_data(df_metadata)) %>%
+    transform_sample_counts(MMUPHin:::tss) %>%
+    prune_taxaSamples()
+  
+  mat_otu_adj <- mat_otu %>% 
+      MMUPHin::adjust.batch(batch = "batch", 
+                            data = df_metadata,
+                            diagnostics = FALSE, 
+                            verbose = FALSE)
+  phylo_adj <- phyloseq::phyloseq(
+    phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
+    sample_data(df_metadata)) %>%
+    transform_sample_counts(MMUPHin:::tss) %>%
+    prune_taxaSamples()
+  
+  l_p <- list(phylo, phylo_adj) %>% 
+    purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
+      ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
+      list(cluster = plot_ordination(phylo, ordination = ordination, color = "score") +
+             ggtitle(Data),
+           batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
+             ggtitle(Data))
+    })
+  
+  cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
+                                     l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
+    ggsave(filename = paste0(dir_output, "example_ordination_", i, "_null.pdf"),
+           .,
+           width = 10, height = 8)
+  
+  loading_before <- results[[i]]$fit.continuous$fit.continuous$consensus.loading
+  score_learned_before <- otu_table2(phylo) %>% sqrt() %>% asin() %>% t() %>% 
+    `%*%`(loading_before)
+  p_before <- tibble::tibble(`Score (Truth)` = df_metadata$score,
+                         `Score (Learned)` = score_learned_before[, 1]) %>% 
+    ggplot(aes(x = `Score (Truth)`, y = `Score (Learned)`)) +
+    geom_point() +
+    xlab("Score (Truth)") + ylab("Score (Learned)")
+  ggsave(filename = paste0(dir_output, "Score_", i, "_null.pdf"),
+           p_before,
+           width = 5, height = 5)
+}
+```

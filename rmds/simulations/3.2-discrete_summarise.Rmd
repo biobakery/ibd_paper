@@ -6,34 +6,43 @@ output:
 html_document:
 df_print: paged
 ---
-# Overview
-Summarise discrete structure discovery
-
 ```{r setup, echo = FALSE}                                           
-knitr::opts_knit$set(root.dir = normalizePath("../"))
-# setwd("simulation/")
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
 rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
+for(i.function in c(list.files("functions/", full.names = TRUE),
+                    list.files("functions/simulations/", full.names = TRUE))) {
   source(i.function)
 }
-setup()
-dir_output <- "results/discrete/"
-dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
+setup("./")
+dir_output <- "results/simulations/discrete/"
 ```
 
 ```{r load data}
 load(paste0(dir_output, "tb_sim.RData"))
+load(paste0(dir_output, "evaluate_before.RData"))
+load(paste0(dir_output, "evaluate_after.RData"))
+```
+
+```{r format simulation set up}
 tb_sim <- tb_sim %>% 
   dplyr::mutate(effect_cluster = effectSize %>% 
                   purrr::map_dbl("cluster"),
                 effect_batch = effectSize %>% 
-                  purrr::map_dbl("batch"),
-                i = 1:n()) %>% 
-  dplyr::select(-`1:n()`)
-load(paste0(dir_output, "evaluate_before.RData"))
-load(paste0(dir_output, "evaluate_after.RData"))
+                  purrr::map_dbl("batch"))
+# nSample and nBatch
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nSample, nBatch) %>% 
+  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+                                        "nBatch = ", nBatch) %>% 
+                  factor(levels = unique(.)))
+# nMicrobe and percMicrobe spiked
+tb_sim <- tb_sim %>% 
+  dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
+  dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
+                                            spikeMicrobes*100, "% spiked") %>% 
+                  factor(levels = unique(.)))
 ```
 
 ```{r sanity check}
