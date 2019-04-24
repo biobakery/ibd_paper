@@ -28,9 +28,9 @@ ncores <- 20
 # sample size
 nBatch <- c(2, 4, 6, 8)
 nCluster <- c(3, 4, 5, 6)
-nSample <- c(1000)
+nSample <- c(200, 1000)
 # feature size
-nMicrobe <- c(1000)
+nMicrobe <- c(200, 1000)
 spikeMicrobes <- c(0.1)
 # metadata specification
 metadata_type <- c("batch" = "factor",
@@ -49,7 +49,6 @@ fDummyDirection <- TRUE
 noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
-  rep,
   nBatch,
   nCluster,
   nSample,
@@ -57,7 +56,10 @@ tb_simSetup <- tidyr::crossing(
   spikeMicrobes,
   noZeroInflate,
   effectSize
-)
+) %>% 
+  dplyr::mutate(i_setup = 1:n()) %>% 
+  tidyr::crossing(rep) %>% 
+  dplyr::mutate(i = 1:n())
 ```
 
 ```{r simulate metadata}
