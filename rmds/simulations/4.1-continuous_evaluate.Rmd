@@ -97,7 +97,7 @@ print(Sys.time() - start.time)
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_correct <-  foreach::`%dopar%`(
-  foreach::foreach(i = 2),
+  foreach::foreach(i = 1:N),
   {
     cat(i, "\n", file = paste0(dir_output, "evaluate_after_progress.txt"), append = TRUE)
     mat_otu <- read.table(paste0(dir_output,
