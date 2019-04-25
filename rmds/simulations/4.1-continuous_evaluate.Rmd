@@ -31,7 +31,7 @@ cutoff <- seq(0.5, 0.1, by = -0.1)
 start.time <- Sys.time() 
 doParallel::registerDoParallel(ncores)
 results <- foreach::`%dopar%`(
-  foreach::foreach(i = 1:N),
+  foreach::foreach(i = c(2, 22)),
   {
     cat(i, "\n", file = paste0(dir_output, "evaluate_before_progress.txt"), 
         append = TRUE)
