@@ -26,15 +26,15 @@ dir.create(paste0(dir_output, "sparseDOSSA_sets/"), recursive = TRUE, showWarnin
 ncores <- 20
 # sample size
 nBatch <- c(4, 6, 8)
-nSample <- c(200, 1000)
+nSample <- c(1000)
 # feature size
-nMicrobe <- c(200, 1000)
-spikeMicrobes <- c(0.1, 0.2)
+nMicrobe <- c(1000)
+spikeMicrobes <- c(0.2)
 # metadata specification
 metadata_type <- c("batch" = "factor",
                    "score" = "numeric")
 tb_effectSize <- tidyr::crossing(batch = 0:10,
-                                 score = c(5, 10))
+                                 score = 10)
 effectSize <- tibble::tibble(effectSize =
                                (1:nrow(tb_effectSize)) %>%
                                purrr::map(function(i) unlist(tb_effectSize[i, ])))

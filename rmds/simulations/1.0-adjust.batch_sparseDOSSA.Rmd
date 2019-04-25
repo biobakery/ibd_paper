@@ -36,7 +36,7 @@ metadata_type <- c("batch" = "factor",
                    "positive_control2" = "numeric",
                    "negative_control" = "factor")
 tb_effectSize <- tidyr::crossing(batch = c(1, 2, 5, 10),
-                                 positive_control1 = c(2, 5, 10),
+                                 positive_control1 = c(10),
                                  negative_control = 0) %>% 
   dplyr::mutate(positive_control2 = positive_control1) %>% 
   dplyr::select(batch, positive_control1, positive_control2, negative_control)

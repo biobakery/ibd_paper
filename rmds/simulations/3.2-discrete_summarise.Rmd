@@ -26,11 +26,21 @@ load(paste0(dir_output, "evaluate_after.RData"))
 ```
 
 ```{r format simulation set up}
+# effect sizes
 tb_sim <- tb_sim %>% 
   dplyr::mutate(effect_cluster = effectSize %>% 
-                  purrr::map_dbl("cluster"),
+                  purrr::map_dbl("cluster") %>% 
+                  factor(levels = c(5, 10)),
                 effect_batch = effectSize %>% 
-                  purrr::map_dbl("batch"))
+                  purrr::map_dbl("batch") %>% 
+                  factor(levels = 0:10)) %>% 
+  dplyr::arrange(nCluster, effect_cluster) %>% 
+  dplyr::mutate(nCluster_effectCluster = paste0("#Cluster = ", nCluster, ", ",
+                                                "effect = ", effect_cluster) %>% 
+                  factor(levels = unique(.)))
+# nCluster
+tb_sim <- tb_sim %>% 
+  dplyr::mutate(nCluster = factor(nCluster, levels = 3:6))
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nSample, nBatch) %>% 
@@ -44,118 +54,134 @@ tb_sim <- tb_sim %>%
                                             spikeMicrobes*100, "% spiked") %>% 
                   factor(levels = unique(.)))
 ```
-
-```{r sanity check}
+```{r summarise results}
+# R2 sanity check
+# aggregate results into df format
 tb_R2 <- list(results, results_correct) %>% 
-  purrr::map2_dfr(names(colors_simulation_unsupervised), 
-                  ~ .x %>% 
-                    purrr::imap_dfr(~ data.frame(R2_cluster = .x$R2["cluster"],
-                                                 R2_batch = .x$R2["batch"],
-                                                 i = .y)) %>% 
-                    data.frame(Data = .y)) %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(colors_simulation_unsupervised)))
-
-ps_R2_batch <- c(200, 1000) %>% 
-  purrr::map(function(i_nSample) {
-    tb_R2 %>% 
-      dplyr::left_join(tb_sim, by = "i") %>% 
-      dplyr::filter(nSample == i_nSample) %>%
-      dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected")) %>% 
-      dplyr::filter(effect_cluster == 10) %>% 
-      ggplot(aes(x = as.factor(effect_batch), y = R2_batch, 
-                 color = Data)) +
-      geom_boxplot() +
-      facet_grid(paste0("nBatch=", nBatch)~paste0("nCluster=", nCluster)) +
-      ggtitle(paste0("nSample = ", i_nSample)) +
-      scale_color_manual(values = colors_simulation_unsupervised)
-  })
-cowplot::plot_grid(plotlist = ps_R2_batch, nrow = 1) %>% 
-  ggsave(filename = paste0(dir_output, "R2_batch.pdf"), ., width = 30, height = 10)
-ps_R2_cluster <- c(200, 1000) %>% 
-  purrr::map(function(i_nSample) {
-    tb_R2 %>% 
-      dplyr::left_join(tb_sim, by = "i") %>% 
-      dplyr::filter(nSample == i_nSample) %>% 
-      dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected")) %>% 
-      dplyr::filter(effect_cluster == 10) %>% 
-      ggplot(aes(x = as.factor(effect_batch), y = R2_cluster, 
-                 color = Data)) +
-      geom_boxplot() +
-      facet_grid(paste0("nBatch=", nBatch)~paste0("nCluster=", nCluster)) +
-      ggtitle(paste0("nSample = ", i_nSample)) +
-      scale_color_manual(values = colors_simulation_unsupervised)
-  })
-cowplot::plot_grid(plotlist = ps_R2_cluster, nrow = 1) %>% 
-  ggsave(filename = paste0(dir_output, "R2_cluster.pdf"), ., width = 30, height = 10)
-```
-```{r how many cases successed in spiking in clustering structure?}
-tb_predStr <- list(results, results_correct) %>% 
-  purrr::map2_dfr(names(colors_simulation_unsupervised), 
-                  ~ .x %>% 
-                    purrr::imap_dfr(function(result, i) {
-                      nCluster_true <- tb_sim[i, ]$nCluster
-                      tb_result <- result$pred.str
-                      tb_result %>% 
-                        dplyr::arrange(-(k == nCluster_true),
-                                       -mean_pred) %>% 
-                        dplyr::slice(1:2) %>% 
-                        dplyr::arrange(-mean_pred) %>% 
-                        dplyr::mutate(pred_str_rank = c("highest", "second"),
-                                      i = i)
-                    }) %>% 
-                    data.frame(Data = .y)) %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(colors_simulation_unsupervised)))
-
-ps_success <- c(200, 1000) %>% 
-  purrr::map(function(i_nSample) {
-    tb_predStr %>% 
-      dplyr::filter(pred_str_rank == "highest") %>% 
-      dplyr::left_join(tb_sim, by = "i") %>% 
-      dplyr::filter(nSample == i_nSample) %>%
-      dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected")) %>% 
-      dplyr::filter(effect_cluster == 10) %>% 
-      dplyr::mutate(success = (k == nCluster)) %>% 
-      dplyr::group_by(effect_batch,
-                      nCluster, nBatch,
-                      nMicrobe, Data) %>% 
-      dplyr::summarise(mean_success = mean(success)) %>% 
-      ggplot(aes(x = as.factor(effect_batch), y = mean_success, 
-                 color = Data)) +
-      geom_point(position = position_dodge(width = 0.5), size = 3) +
-      facet_grid(paste0("nBatch=", nBatch)~paste0("nCluster=", nCluster)) +
-      ggtitle(paste0("nSample = ", i_nSample)) +
-      scale_color_manual(values = colors_simulation_unsupervised)
-  })
-cowplot::plot_grid(plotlist = ps_success, nrow = 1) %>% 
-  ggsave(filename = paste0(dir_output, "simulation_result.pdf"), ., width = 30, height = 10)
+  purrr::map2_dfr(
+    names(colors_base),
+    ~ .x %>% 
+      purrr::imap_dfr(
+        ~ tibble::tibble(Variable = names(.x$R2),
+                         R2 = .x$R2,
+                         i = .y)
+      ) %>% 
+      dplyr::mutate(Data = .y)
+    ) 
+# format variables
+tb_R2 <- tb_R2 %>% 
+  dplyr::mutate(Variable = factor(Variable, 
+                                  levels = c("batch", "cluster")),
+                Data = factor(Data, levels = names(colors_base)))
+# continuous results
+# aggregate results into df format
+tb_results <- list(results, results_correct) %>% 
+  purrr::map2_dfr(
+    names(colors_base),
+    ~ .x %>% 
+      purrr::imap_dfr(
+        ~ tibble::tibble(results = list(.x$pred.str),
+                         i = .y)
+      ) %>% 
+      dplyr::mutate(Data = .y)
+  ) 
+# sanity check
+# all simulation runs were successful
+# mean(tb_results$results %>% purrr::map_lgl(~is.null(.x)))
+# format results
+tb_summary <- tb_results %>% 
+  dplyr::mutate(Data = factor(Data, levels = names(names(colors_base))),
+                Cor = results %>% 
+                  purrr::map_dbl("correlation"))
+# calculate successes
+tb_results <- tb_results %>% 
+  dplyr::left_join(tb_sim, by = "i") %>% 
+  dplyr::mutate(max_k = results %>% 
+                  purrr::map_int(~ .x %>% 
+                                   dplyr::arrange(-mean_pred) %>% 
+                                   magrittr::extract2("k") %>% 
+                                   magrittr::extract(1)),
+                success = (max_k == nCluster)) 
+# summarise success rates
+tb_summary <- tb_results %>%
+  dplyr::group_by(i_setup, Data) %>% 
+  dplyr::summarise(mean_success = mean(success)) %>% 
+  dplyr::ungroup()
 ```
 
+```{r plot}
+# R2 sanity check
+tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
+  dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
+for(i.effect in levels(tb_plot$nCluster_effectCluster)) {
+  plist <- (1:nlevels(tb_plot$Variable)) %>% 
+    purrr::map(function(i) {
+      i.Variable <- levels(tb_plot$Variable)[i]
+      p <- tb_plot %>% 
+        dplyr::filter(Variable == i.Variable,
+                      nCluster_effectCluster == i.effect) %>% 
+        ggplot(aes(x = effect_batch, y = R2, color = Data)) +
+        geom_boxplot() +
+        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+        scale_color_manual(values = colors_simulation_adjust.batch) +
+        theme(legend.position = c(0, 1),
+              legend.justification = c(0, 1),
+              legend.background = element_blank(),
+              strip.text = element_text(size = 8),
+              legend.text = element_text(size = 8)) +
+        xlab("Batch effect") +
+        ggtitle(i.Variable)
+      if(i >= 2)
+        p <- p + theme(legend.position = "none")
+      return(p)
+    })
+  cowplot::plot_grid(plotlist = plist,
+                     nrow = 2) %>% 
+    ggsave(paste0(dir_output, 
+                  "R2_effectCluster_", 
+                  i.effect, 
+                  ".pdf"),
+           .,
+           width = 15, height = 15)
+}
 
-```{r prediction strength comparison}
-ps_predStr <- c(200, 1000) %>% 
-  purrr::map(function(i_nSample) {
-    tb_predStr %>% 
-      dplyr::left_join(tb_sim, by = "i") %>% 
-      dplyr::filter(nSample == i_nSample) %>% 
-      dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected")) %>% 
-      dplyr::filter(effect_cluster == 10) %>% 
-      dplyr::mutate(k_identified = ifelse(k == nCluster,
-                                          "Correct",
-                                          "Highest") %>% 
-                      factor(levels = c("Highest", "Correct"))) %>% 
-      ggplot(aes(x = as.factor(effect_batch), y = mean_pred, 
-                 alpha = k_identified, fill = Data)) +
-      geom_boxplot() +
-      facet_grid(paste0("nBatch=", nBatch)~paste0("nCluster=", nCluster)) +
-      ggtitle(paste0("nSample = ", i_nSample)) +
-      scale_fill_manual(values = colors_simulation_unsupervised) +
-      scale_alpha_manual(values = c("Highest" = 0.5, "Correct" = 1))
-  })
-cowplot::plot_grid(plotlist = ps_predStr, nrow = 1) %>% 
-  ggsave(filename = paste0(dir_output, "prediction_strength.pdf"), ., width = 30, height = 10)
+# summary plot
+tb_plot <- tb_summary %>% 
+  dplyr::left_join(dplyr::filter(tb_sim, !duplicated(i_setup)),
+                   by = "i_setup") %>% 
+  dplyr::filter(!(effect_batch == 0 &Data == "MMUPHin corrected"))
+for(i.effect in levels(tb_plot$effect_cluster)) {
+  plist <- (1:nlevels(tb_plot$nCluster)) %>% 
+    purrr::map(function(i) {
+      i.nCluster <- levels(tb_plot$nCluster)[i]
+      p <- tb_plot %>% 
+        dplyr::filter(nCluster == i.nCluster,
+                      effect_cluster == i.effect) %>% 
+        ggplot(aes(x = effect_batch, y = mean_success, color = Data)) +
+        geom_point(position = position_dodge(width = 0.5)) +
+        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+        scale_color_manual(values = colors_simulation_adjust.batch) +
+        theme(legend.position = c(1, 1),
+              legend.justification = c(1, 1),
+              legend.background = element_blank(),
+              strip.text = element_text(size = 8),
+              legend.text = element_text(size = 8)) +
+        xlab("Batch effect") +
+        ggtitle(i.Variable)
+      if(i >= 2)
+        p <- p + theme(legend.position = "none")
+      return(p)
+    })
+  cowplot::plot_grid(plotlist = plist,
+                     nrow = 2) %>% 
+    ggsave(paste0(dir_output, 
+                  "summary_effectCluster_", 
+                  i.effect, 
+                  ".pdf"),
+           .,
+           width = 20, height = 10)
+}
 ```
-
-
 ```{r find example case}
 is <- tb_sim %>% 
   dplyr::filter(nCluster == 3, effect_batch == 10, effect_cluster == 10,
