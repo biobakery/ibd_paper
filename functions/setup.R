@@ -8,13 +8,6 @@ setup <- function(dir) {
   # Load global packages
   for(i.lib in lib.toLoad) library(i.lib, character.only = TRUE)
   
-  # Plotting options
-  theme_set(theme_bw() +
-              theme(panel.grid.major = element_blank(), 
-                    panel.grid.minor = element_blank(),
-                    title = element_text(size = 16),
-                    axis.title = element_text(size = 16),
-                    axis.text = element_text(size = 14),
-                    legend.text = element_text(size = 14),
-                    strip.text = element_text(size = 14)))
+  # set ggplot theme
+  smar::set_ggplot()
 }

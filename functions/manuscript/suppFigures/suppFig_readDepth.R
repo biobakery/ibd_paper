@@ -1,13 +1,13 @@
-suppFig_readDepth <- function(phylo_readCount, # for plotting read counts
-                              phylo_prefilter, # these two are for generating 
-                              phylo_postfilter,  # nFeature vs. lib size plots
+suppFig_readDepth <- function(physeq_readCount, # for plotting read counts
+                              physeq_prefilter, # these two are for generating 
+                              physeq_postfilter,  # nFeature vs. lib size plots
                               path = "supp_materials/suppFigures/suppFig_readDepth.pdf", 
                               width = 10, height = 10, 
                               rel_heights = c(4, 3), 
                               nrow = 2, 
                               labels = c("a", "b")) {
   library(ggplot2)
-  tb_compareReadCounts <- sample_data2(phylo_readCount) %>% 
+  tb_compareReadCounts <- smar::sample_data2(physeq_readCount) %>% 
     tidyr::gather(key = "Type of read count",
                   value = "N",
                   original_read_count,
@@ -27,7 +27,7 @@ suppFig_readDepth <- function(phylo_readCount, # for plotting read counts
   p_compareReadCounts <- tb_compareReadCounts %>% 
     dplyr::filter(`Type of read count` != "Read depth") %>% 
     ggplot(aes(x = Study, y = log2(N + 1), color = `Type of read count`)) + 
-    geom_boxplot() + rotate_xaxis(30) +
+    geom_boxplot() + smar::rotate_xaxis(30) +
     ylab("log2(read count + 1)") + 
     theme(legend.position = c(0, 1), 
           legend.justification = c(0, 1), 
@@ -36,10 +36,10 @@ suppFig_readDepth <- function(phylo_readCount, # for plotting read counts
           axis.title.x = element_blank())
   
   
-  tb_nFeatureVsReadDepth <- list(pre_filter = phylo_prefilter,
-                                 post_filter = phylo_postfilter) %>% 
-    purrr::imap_dfr(function(phylo, filtering) {
-      phylo %>% phyloseq_to_tb %>% 
+  tb_nFeatureVsReadDepth <- list(pre_filter = physeq_prefilter,
+                                 post_filter = physeq_postfilter) %>% 
+    purrr::imap_dfr(function(physeq, filtering) {
+      physeq %>% smar::phyloseq_to_tb() %>% 
         dplyr::group_by(dataset_name, feature) %>% 
         dplyr::summarise(present = any(abundance > 0),
                          median_read_depth = median(log2(read_depth))) %>% 
@@ -57,7 +57,7 @@ suppFig_readDepth <- function(phylo_readCount, # for plotting read counts
                   p_spearman = cor.test(median_read_depth, n_present, 
                                         method = "spearman", alternative = "greater",
                                         exact = FALSE)$p.value,
-                  label = ifelse((1:n()) == 1,
+                  label = ifelse((1:dplyr::n()) == 1,
                                  paste0("Spearman correlation = ", 
                                         round(rho_spearman, digits = 3),
                                         "\nOne-sided p = ", 

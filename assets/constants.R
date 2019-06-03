@@ -1,3 +1,5 @@
+# required packages -------------------------------------------------------
+
 lib.toLoad <- 
   c("magrittr", # for easy operators
     "ggplot2", 
@@ -10,6 +12,9 @@ lib.required <- c(lib.toLoad,
                   "DT", # for table formatting
                   "hash", "optparse" # for Maaslin2
                   )
+
+# study information -------------------------------------------------------
+
 studies <- c("BIDMC-FMT",
              "CS-PRISM",
              "Herfarth_CCFA_Microbiome_3B_combined",
@@ -25,5 +30,7 @@ studies_longitudinal <- c("Herfarth_CCFA_Microbiome_3B_combined",
                           "Jansson_Lamendella_Crohns",
                           "LSS-PRISM",
                           "PROTECT")
-  
+
+# directory for processed samples -----------------------------------------
+
 dir_processed <- "../ibd_meta_analysis/"

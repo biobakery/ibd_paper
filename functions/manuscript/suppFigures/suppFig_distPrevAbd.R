@@ -2,19 +2,22 @@ is_outlier <- function(x, threshold_upper = -Inf, threshold_lower = -Inf) {
   return((x < quantile(x, 0.25) - 1.5 * IQR(x) & x > threshold_lower) | 
            (x > quantile(x, 0.75) + 1.5 * IQR(x) & x > threshold_upper))
 }
+
 is_outlier_label <- function(x, adj = 0) {
   return(x < quantile(x, 0.25) - 1.5 * IQR(x) - adj | 
          x > quantile(x, 0.75) + 1.5 * IQR(x) + adj)
 }
+
 is_outlier_upper_label <- function(x, adj = 0) {
   return(x > quantile(x, 0.75) + 1.5 * IQR(x) + adj)
 }
+
 suppFig_meidumHighPrevalent <- 
-  function(phylo,
+  function(physeq,
            path = "supp_materials/suppFigures/suppFig_mediumHighPrev.pdf") {
-    tb_long <- phylo %>% 
+    tb_long <- physeq %>% 
       to_relativeAbundance() %>% 
-      phyloseq_to_tb()
+      smar::phyloseq_to_tb()
     tb_summarise <- tb_long %>% 
       dplyr::group_by(feature) %>% 
       dplyr::mutate(prevalence = mean(abundance > 0)) %>% 
@@ -31,8 +34,8 @@ suppFig_meidumHighPrevalent <-
       dplyr::mutate(feature = feature %>% 
                       stringr::str_replace_all("\\|NA.*", ""))
     
-    tb_readDepth_summary <- phylo %>% 
-      sample_data2() %>% 
+    tb_readDepth_summary <- physeq %>% 
+      smar::sample_data2() %>% 
       dplyr::group_by(dataset_name) %>% 
       dplyr::summarise(median_read_depth = median(log2(read_depth)))
     
@@ -52,13 +55,13 @@ suppFig_meidumHighPrevalent <-
       dplyr::left_join(tb_readDepth_summary, by = "dataset_name") %>% 
       dplyr::group_by(feature) %>% 
       dplyr::mutate(rho.spearman = cor(prevalence_study, median_read_depth, method = "spearman") %>% 
-                      ifelse((1:n()) == 1, ., NA_real_),
+                      ifelse((1:dplyr::n()) == 1, ., NA_real_),
                     p.spearman = 
                       cor.test(prevalence_study, median_read_depth, 
                                method = "spearman", 
                                alternative = "greater",
                                exact = FALSE)$p.value %>% 
-                      ifelse((1:n()) == 1, ., NA_real_)) %>% 
+                      ifelse((1:dplyr::n()) == 1, ., NA_real_)) %>% 
       dplyr::ungroup() %>% 
       dplyr::mutate(p.adj = p.adjust(p.spearman, method = "fdr")) %>% 
       dplyr::mutate(annotation = 
@@ -108,8 +111,8 @@ suppFig_meidumHighPrevalent <-
             axis.text = element_text(size = 10)) 
     
     # check Bifido age correlation
-    tb_age_summary <- phylo %>% 
-      sample_data2() %>% 
+    tb_age_summary <- physeq %>% 
+      smar::sample_data2() %>% 
       dplyr::group_by(dataset_name) %>% 
       dplyr::summarise(median_age = median(age, na.rm = TRUE))
     tb_summarise %>% 
@@ -171,11 +174,11 @@ suppFig_meidumHighPrevalent <-
   }
 
 suppFig_featureMissingFromOne <- 
-  function(phylo,
+  function(physeq,
            path = "supp_materials/suppFigures/suppFig_featureMissingFromOne.pdf") {
-    tb_long <- phylo %>% 
+    tb_long <- physeq %>% 
       to_relativeAbundance() %>% 
-      phyloseq_to_tb()
+      smar::phyloseq_to_tb()
     tb_summarise <- tb_long %>% 
       dplyr::group_by(feature) %>% 
       dplyr::mutate(prevalence = mean(abundance > 0)) %>% 
@@ -195,7 +198,7 @@ suppFig_featureMissingFromOne <-
     p_featureMissingFromOne <- tb_summarise %>% 
       dplyr::filter(prevalence <= 0.7, n_absent >= 1, prevalence_study > 0) %>% 
       dplyr::group_by(feature, n_absent) %>% 
-      dplyr::mutate(n_prevalent = n(),
+      dplyr::mutate(n_prevalent = dplyr::n(),
                     include = max(prevalence_study) > 0.05,
                     spread = IQR(mean_abundance),
                     label = ifelse(is_outlier_upper_label(mean_abundance, adj = 0.001),
