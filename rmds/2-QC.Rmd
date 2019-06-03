@@ -10,62 +10,60 @@ output:
 - Filter samples based on read depth
 - Filter features based on prevalence and abundance
 
-```{r setup, echo=FALSE}
-knitr::opts_knit$set(root.dir = normalizePath(".."))
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../")
 ```
-```{r setup2, echo=FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
 dir_output <- "results/2-QC/"
-dir.create(dir_output)
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
 
 # Load studies
 
 ```{r load datasets}
-load("data/phyloseq/otus_prefilter.RData")
-load("data/phyloseq/species_prefilter.RData")
-load("data/phyloseq/genera_prefilter.RData")
+load("data/physeq/otus_prefilter.RData")
+load("data/physeq/species_prefilter.RData")
+load("data/physeq/genera_prefilter.RData")
 ```
 
 # Filter samples
 
 ```{r filter samples and taxa}
-print(c(nsamples(phylo_species_prefilter),
-        dplyr::n_distinct(sample_data2(phylo_species_prefilter)$subject_accession),
-        nsamples(phylo_genera_prefilter),
-        dplyr::n_distinct(sample_data2(phylo_genera_prefilter)$subject_accession)))
-phylo_species <- phylo_species_prefilter %>% 
+print(c(nsamples(physeq_species_prefilter),
+        dplyr::n_distinct(smar::sample_data2(physeq_species_prefilter)$subject_accession),
+        nsamples(physeq_genera_prefilter),
+        dplyr::n_distinct(smar::sample_data2(physeq_genera_prefilter)$subject_accession)))
+physeq_species <- physeq_species_prefilter %>% 
   phyloseq::subset_samples(read_depth > 3000)
-phylo_genera <- phylo_genera_prefilter %>% 
+physeq_genera <- physeq_genera_prefilter %>% 
   phyloseq::subset_samples(read_depth > 3000)
-print(c(nsamples(phylo_species),
-        dplyr::n_distinct(sample_data2(phylo_species)$subject_accession),
-        nsamples(phylo_genera),
-        dplyr::n_distinct(sample_data2(phylo_genera)$subject_accession)))
+print(c(nsamples(physeq_species),
+        dplyr::n_distinct(smar::sample_data2(physeq_species)$subject_accession),
+        nsamples(physeq_genera),
+        dplyr::n_distinct(smar::sample_data2(physeq_genera)$subject_accession)))
 ```
 
 # Filter taxa
 
 ```{r examine filtering thresholds}
-cutoff_abundance <- c(1e-5, 1e-4, 1e-3)
+cutoff_abundance <- c(1e-5, 5e-5, 1e-4, 1e-3)
 cutoff_prevalence <- c(0.05, 0.1)
 tb_param <-  tidyr::crossing(cutoff_abundance, cutoff_prevalence)
 tb_filter <- (1:nrow(tb_param)) %>% 
   purrr::map_dfr(function(i_param) {
     cutoff_abundance <- tb_param$cutoff_abundance[i_param]
     cutoff_prevalence <- tb_param$cutoff_prevalence[i_param]
-    list(phylo_genera,
-         phylo_species) %>% 
+    list(physeq_genera,
+         physeq_species) %>% 
       purrr::map2_dfr(c("genera", "species"), 
-                      function(phylo, feature_level) {
-                        phylo_rel <- phylo %>% 
+                      function(physeq, feature_level) {
+                        physeq_rel <- physeq %>% 
                           to_relativeAbundance()
-                        tb_presence <- phylo_rel %>% 
-                          phyloseq_to_tb() %>% 
+                        tb_presence <- physeq_rel %>% 
+                          smar::phyloseq_to_tb() %>% 
                           dplyr::group_by(feature, dataset_name) %>% 
                           dplyr::summarise(
                             n = dplyr::n(),
@@ -94,28 +92,28 @@ tb_filter_summary <- tb_filter %>%
 ```
 
 ```{r filter taxa}
-phylo_genera <- 
+physeq_genera <- 
   tb_filter %>% 
   dplyr::filter(feature_level == "genera",
-                cutoff_abundance == 1e-4,
+                cutoff_abundance == 5e-5,
                 cutoff_prevalence == 0.1,
                 n_study >= 1) %>% 
   dplyr::pull(feature) %>% 
-  phyloseq::prune_taxa(phylo_genera) %>% 
-  prune_taxaSamples()
-phylo_species <- 
+  phyloseq::prune_taxa(physeq_genera) %>% 
+  smar::prune_taxaSamples()
+physeq_species <- 
   tb_filter %>% 
   dplyr::filter(feature_level == "species",
-                cutoff_abundance == 1e-4,
+                cutoff_abundance == 5e-5,
                 cutoff_prevalence == 0.1,
                 n_study >= 1) %>% 
   dplyr::pull(feature) %>% 
-  phyloseq::prune_taxa(phylo_species) %>% 
-  prune_taxaSamples()
+  phyloseq::prune_taxa(physeq_species) %>% 
+  smar::prune_taxaSamples()
 # sanity check
-nsamples(phylo_genera)
-nsamples(phylo_species)
+nsamples(physeq_genera)
+nsamples(physeq_species)
 
-save(phylo_genera, file = "data/phyloseq/genera.RData")
-save(phylo_species, file = "data/phyloseq/species.RData")
+save(physeq_genera, file = "data/physeq/genera.RData")
+save(physeq_species, file = "data/physeq/species.RData")
 ```

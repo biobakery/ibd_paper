@@ -10,24 +10,22 @@ output:
 - Check the availability of metadata across studies
 - Visualize distribution
 
-```{r setup, echo=FALSE}
-knitr::opts_knit$set(root.dir = normalizePath(".."))
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../")
 ```
-```{r setup2, echo=FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
 dir_output <- "results/2.2-examine_metadata/"
-dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
 
 # Availability of metadata
 ```{r check availability}
 template <- readr::read_csv(paste0(dir_processed, "data/template.csv"))
-load("data/phyloseq/species_prefilter.RData")
-df_metadata <- sample_data2(phylo_species_prefilter)
+load("data/physeq/species_prefilter.RData")
+df_metadata <- smar::sample_data2(physeq_species_prefilter)
 
 df_metaLong <- df_metadata %>% 
   dplyr::select(dplyr::one_of(template$col.name)) %>% 
@@ -41,8 +39,10 @@ df_avail <- df_metaLong %>%
   dplyr::group_by(dataset_name, variable) %>% 
   dplyr::summarise(is_available = any(!is.na(value)))
 p <- df_avail %>% 
-  ggplot(aes(x = dataset_name, y = variable, fill = is_available)) + geom_tile() +
-  scale_fill_manual(values = c("TRUE" = "black", "FALSE" = "white")) + rotate_xaxis(15)
+  ggplot(aes(x = dataset_name, y = variable, fill = is_available)) + 
+  geom_tile() +
+  scale_fill_manual(values = c("TRUE" = "black", "FALSE" = "white")) +
+  smar::rotate_xaxis(15)
 print(p) %>% 
   ggsave(file = paste0(dir_output, "fig_checkAvailabbility.pdf"), .,
        width = 10, height = 10)
@@ -60,7 +60,7 @@ l_p_disc <- df_metaLong %>%
   dplyr::mutate(p = purrr::map2(variable, data, function(variable, idf) {
     levels_value <- idf$allowedvalues %>% unique() %>% 
       strsplit("|", fixe = TRUE) %>% extract2(1)
-    colors_value <- gg_color_hue(levels_value)
+    colors_value <- smar::gg_color_hue(levels_value)
     idf %>% 
       dplyr::mutate(value_mod = value_mod %>% 
                       factor(levels = c(levels_value, "not available") %>% 
@@ -69,12 +69,13 @@ l_p_disc <- df_metaLong %>%
       dplyr::summarise(n = sum(!is.na(value_mod))) %>% 
       ggplot(aes(x = dataset_name, y = n, fill = value_mod)) + geom_bar(stat = "identity") +
       scale_fill_manual(values = c(colors_value, "not available" = "darkgray")) +
-      ggtitle(variable) + rotate_xaxis(30)
+      ggtitle(variable) + smar::rotate_xaxis(30)
   })) %>% 
   extract2("p")
 cowplot::plot_grid(plotlist = l_p_disc, ncol = 2) %>% 
   ggsave(filename = paste0(dir_output, "fig_discDist.pdf"),
-         width = 10, height = length(l_p_disc) * 2.5)
+         width = 20, height = length(l_p_disc) * 5,
+         limitsize = FALSE)
 l_p_num <- df_metaLong %>% 
   dplyr::filter(var.class == "numeric") %>% 
   dplyr::group_by(variable) %>% 
@@ -89,10 +90,10 @@ l_p_num <- df_metaLong %>%
       ggplot(aes(x = paste0(dataset_name, "\n", perc_na, "% missing"), 
                  y = value)) + 
       geom_violin() + geom_boxplot(width = 0.1) + 
-      ggtitle(variable) + xlab("dataset_name") + rotate_xaxis(30)
+      ggtitle(variable) + xlab("dataset_name") + smar::rotate_xaxis(30)
   })) %>% 
   extract2("p")
 cowplot::plot_grid(plotlist = l_p_num, ncol = 1) %>% 
   ggsave(filename = paste0(dir_output, "fig_numDist.pdf"),
-         width = 8, height = length(l_p_num) * 4)
+         width = 10, height = length(l_p_num) * 5)
 ```

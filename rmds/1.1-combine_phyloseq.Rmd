@@ -11,15 +11,13 @@ output:
 - Filter to only CD/UC/control samples with available sample type.
 - Add metadata columns (baseline indicator, read depth, etc.)
 
-```{r setup, echo=FALSE}
-knitr::opts_knit$set(root.dir = normalizePath(".."))
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../")
 ```
-```{r setup2, echo=FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
 ```
 
 # Combine studies into one phyloseq object
@@ -28,28 +26,28 @@ setup(getwd())
 print(studies)
 l_otus <- l_species <- l_genera <- list()
 for(study in studies) {
-  load(paste0("data/phyloseq/",
+  load(paste0("data/physeq/",
               study,
               "/otus.RData"))
-  load(paste0("data/phyloseq/",
+  load(paste0("data/physeq/",
               study,
               "/species.RData"))
-  load(paste0("data/phyloseq/",
+  load(paste0("data/physeq/",
               study,
               "/genera.RData"))
-  l_otus[[study]] <- phylo
-  l_species[[study]] <- phylo_species
-  l_genera[[study]] <- phylo_genera
+  l_otus[[study]] <- physeq
+  l_species[[study]] <- physeq_species
+  l_genera[[study]] <- physeq_genera
 }
-phylo_otus_prefilter <- combine_phyloseq(l_otus)
-phylo_species_prefilter <- combine_phyloseq(l_species)
-phylo_genera_prefilter <- combine_phyloseq(l_genera)
-df_metadata <- sample_data2(phylo_species_prefilter)
+physeq_otus_prefilter <- combine_phyloseq(l_otus)
+physeq_species_prefilter <- combine_phyloseq(l_species)
+physeq_genera_prefilter <- combine_phyloseq(l_genera)
+df_metadata <- smar::sample_data2(physeq_species_prefilter)
 ```
 
 # Filter by disease and sample type
 
-```{r filtering}
+```{r filtering by sample type}
 df_metadata <- df_metadata %>% 
   dplyr::filter(disease %in% c("CD", "UC", "control")) %>% 
   dplyr::filter(!is.na(sample_type))
@@ -76,9 +74,9 @@ df_metadata <- df_metadata %>%
 #                 is.na(`reads mapping to unclassifed OTU`)) %>% 
 #   nrow()
 df_metadata$`read_depth` <- 
-  apply(otu_table2(phylo_otus_prefilter), 2, sum)[df_metadata$sample_accession_16S]
+  apply(smar::otu_table2(physeq_otus_prefilter), 2, sum)[df_metadata$sample_accession_16S]
 # sanity check
-ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 4
+ncol(df_metadata) == ncol(smar::sample_data2(physeq_otus_prefilter)) + 4
 ```
 
 ```{r add baseline indicator}
@@ -128,28 +126,29 @@ df_metadata <- rbind(df_metadata_HMP2,
                      df_metadata_Herfarth) %>% 
   dplyr::right_join(df_metadata, by = colnames(df_metadata))
 # sanity check
-ncol(df_metadata) == ncol(sample_data2(phylo_otus_prefilter)) + 5
-all(df_metadata$sample_accession_16S %in% sample_names(phylo_otus_prefilter))
+ncol(df_metadata) == ncol(smar::sample_data2(physeq_otus_prefilter)) + 5
+all(df_metadata$sample_accession_16S %in% sample_names(physeq_otus_prefilter))
+class(df_metadata) <- "data.frame"
 rownames(df_metadata) <- df_metadata$sample_accession_16S
 ```
 
 # Prune features that are just not there after subsetting and save the combined phyloseq objects
 
 ```{r prune features save}
-phylo_otus_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
-                                                phylo_otus_prefilter) %>% 
+physeq_otus_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                physeq_otus_prefilter) %>% 
   phyloseq::filter_taxa(function(x) any(x > 0), prune = TRUE)
-sample_data(phylo_otus_prefilter) <- df_metadata
-phylo_species_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
-                                                   phylo_species_prefilter) %>% 
+sample_data(physeq_otus_prefilter) <- df_metadata
+physeq_species_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                   physeq_species_prefilter) %>% 
   phyloseq::filter_taxa(function(x) any(x > 0), prune = TRUE)
-sample_data(phylo_species_prefilter) <- df_metadata
-phylo_genera_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
-                                                  phylo_genera_prefilter) %>% 
+sample_data(physeq_species_prefilter) <- df_metadata
+physeq_genera_prefilter <- phyloseq::prune_samples(rownames(df_metadata), 
+                                                  physeq_genera_prefilter) %>% 
   phyloseq::filter_taxa(function(x) any(x > 0), prune = TRUE)
-sample_data(phylo_genera_prefilter) <- df_metadata
+sample_data(physeq_genera_prefilter) <- df_metadata
 
-save(phylo_otus_prefilter, file = "data/phyloseq/otus_prefilter.RData")
-save(phylo_species_prefilter, file = "data/phyloseq/species_prefilter.RData")
-save(phylo_genera_prefilter, file = "data/phyloseq/genera_prefilter.RData")
+save(physeq_otus_prefilter, file = "data/physeq/otus_prefilter.RData")
+save(physeq_species_prefilter, file = "data/physeq/species_prefilter.RData")
+save(physeq_genera_prefilter, file = "data/physeq/genera_prefilter.RData")
 ```

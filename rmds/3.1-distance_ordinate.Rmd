@@ -11,26 +11,24 @@ These tasks are related and time consuming, so organize together in the same Rmd
 - Calcuate distance metrics
 - Perform ordination
 
-```{r setup, echo = FALSE}
-knitr::opts_knit$set(root.dir = normalizePath(".."))
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../")
 ```
-```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
-# dir_output <- "results/3.1-distance_ordinate/"
-# dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
+dir_output <- "results/3.1-distance_ordinate/"
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
 
 ```{r load phyloseq objects}
-load("data/phyloseq/genera.RData")
-load("data/phyloseq/genera_adjBatch.RData")
-load("data/phyloseq/genera_adj.RData")
-load("data/phyloseq/species.RData")
-load("data/phyloseq/species_adjBatch.RData")
-load("data/phyloseq/species_adj.RData")
+load("data/physeq/genera.RData")
+load("data/physeq/genera_adjBatch.RData")
+load("data/physeq/genera_adj.RData")
+load("data/physeq/species.RData")
+load("data/physeq/species_adjBatch.RData")
+load("data/physeq/species_adj.RData")
 ```
 
 # These are the distance metrics 
@@ -54,12 +52,12 @@ for(i in 1:nrow(distances)) {
   dir.create(dir_output_tmp, recursive = TRUE, showWarnings = FALSE)
   for(feature_level in c("genera", "species")) {
     # calculate distance on the study-adjusted matrix
-    phylo_tmp <- get(paste0("phylo_", feature_level, "_adj")) %>% 
+    physeq_tmp <- get(paste0("physeq_", feature_level, "_adj")) %>% 
       to_relativeAbundance()
-    dist_tmp <- phyloseq::distance(phylo_tmp, 
+    dist_tmp <- phyloseq::distance(physeq_tmp, 
                                    method = i_distance,
                                    binary = distances$binary[i],
-                                   parallel=TRUE)
+                                   parallel = TRUE)
     assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
     
     if(i_distance != "bray") {
@@ -69,18 +67,18 @@ for(i in 1:nrow(distances)) {
     } else {
       # for bray-curtis, also evaluate the original and batch adjusted data
       # calculate distance on the original matrix
-      phylo_tmp <- get(paste0("phylo_", feature_level)) %>% 
+      physeq_tmp <- get(paste0("physeq_", feature_level)) %>% 
         to_relativeAbundance()
-      dist_tmp <- phyloseq::distance(phylo_tmp, 
+      dist_tmp <- phyloseq::distance(physeq_tmp, 
                                      method = i_distance,
                                      binary = distances$binary[i],
                                      parallel=TRUE)
       assign(paste0("dist_", feature_level), dist_tmp)
       
       # calculate distance on the batch-adjusted matrix
-      phylo_tmp <- get(paste0("phylo_", feature_level, "_adjBatch")) %>% 
+      physeq_tmp <- get(paste0("physeq_", feature_level, "_adjBatch")) %>% 
         to_relativeAbundance()
-      dist_tmp <- phyloseq::distance(phylo_tmp, 
+      dist_tmp <- phyloseq::distance(physeq_tmp, 
                                      method = i_distance,
                                      binary = distances$binary[i],
                                      parallel=TRUE)
@@ -118,14 +116,14 @@ for(i_distance in distance_to_ordinate) {
     load(paste0("data/distance/", 
                 i_distance, "/dist_", feature_level,
                 "_adj.RData"))
-    # for ordination phylo_genera is okay before metadata is shared
+    # for ordination physeq_genera is okay before metadata is shared
     # ordinate original data
     dist_tmp <- get(paste0("dist_", feature_level))
-    ordinate_tmp <- phyloseq::ordinate(phylo_genera, dist_tmp, method = "MDS")
+    ordinate_tmp <- phyloseq::ordinate(physeq_genera, dist_tmp, method = "MDS")
     assign(paste0("ord_", feature_level), ordinate_tmp)
     # ordinate fully adjusted data
     dist_tmp <- get(paste0("dist_", feature_level, "_adj"))
-    ordinate_tmp <- phyloseq::ordinate(phylo_genera, dist_tmp, method = "MDS")
+    ordinate_tmp <- phyloseq::ordinate(physeq_genera, dist_tmp, method = "MDS")
     assign(paste0("ord_", feature_level, "_adj"), ordinate_tmp)
     save(list = paste0("ord_", feature_level), 
          file = paste0(dir_output_tmp, "ord_", feature_level, ".RData"))
@@ -133,15 +131,15 @@ for(i_distance in distance_to_ordinate) {
          file = paste0(dir_output_tmp, "ord_", feature_level, "_adj.RData"))
     # for dataset with batch variable, ordinate before and after batch adjustment
     for(study in c("BIDMC-FMT", "CS-PRISM", "LSS-PRISM", "MucosalIBD", "RISK")) {
-      phylo_tmp <- phyloseq::subset_samples(phylo_genera, dataset_name %in% study)
+      physeq_tmp <- phyloseq::subset_samples(physeq_genera, dataset_name %in% study)
       # ordinate original data
       dist_tmp <- get(paste0("dist_", feature_level)) %>% 
-        subset_distance(phyloseq::sample_names(phylo_tmp))
-      ordinate_tmp <- phyloseq::ordinate(phylo_tmp, dist_tmp, method = "MDS")
+        subset_distance(phyloseq::sample_names(physeq_tmp))
+      ordinate_tmp <- phyloseq::ordinate(physeq_tmp, dist_tmp, method = "MDS")
       assign(paste0("ord_", feature_level, "_", study), ordinate_tmp)
       dist_tmp <- get(paste0("dist_", feature_level, "_adjBatch")) %>% 
-        subset_distance(phyloseq::sample_names(phylo_tmp))
-      ordinate_tmp <- phyloseq::ordinate(phylo_tmp, dist_tmp, method = "MDS")
+        subset_distance(phyloseq::sample_names(physeq_tmp))
+      ordinate_tmp <- phyloseq::ordinate(physeq_tmp, dist_tmp, method = "MDS")
       assign(paste0("ord_", feature_level, "_", study, "_adjBatch"), ordinate_tmp)
       save(list = paste0("ord_", feature_level, "_", study), 
          file = paste0(dir_output_tmp, "ord_", feature_level, "_", study, ".RData"))

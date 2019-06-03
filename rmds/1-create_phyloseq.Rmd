@@ -10,15 +10,14 @@ output:
 - Load .biom files from 16s workflow.
 - Load curated metadata. 
 - Match samples between otu table and metadata. Create otu cluster/species/genera level phyloseq objects.
-```{r setup, echo=FALSE} 
-knitr::opts_knit$set(root.dir = normalizePath(".."))
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../")
 ```
-```{r setup2, echo=FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
 ```
 
 # Load .biom files from 16s workflow
@@ -41,12 +40,12 @@ for(study in studies) {
 # Load cuarated metadata, match samples, create phyloseq objects.
 
 ```{r create phyloseq}
-template <- paste0(dir_processed, "data/template.csv") %>% 
+template <- paste0(dir_processed, "data/template.csv") %>%
   readr::read_csv()
-column_setup <- template$var.class %>% 
+column_setup <- template$var.class %>%
   dplyr::recode("character" = "c",
                 "numeric" = "d",
-                "integer" = "i") %>% 
+                "integer" = "i") %>%
   paste(collapse = "")
 for(study in studies) {
   print(study)
@@ -55,35 +54,35 @@ for(study in studies) {
                      "processed/",
                      study,
                      "/metadata/metadata.txt") %>%
-    readr::read_tsv(col_types = column_setup) 
-  
+    readr::read_tsv(col_types = column_setup)
+
   sample_common <- intersect(metadata$sample_accession_16S,
                              phyloseq::sample_names(biom))
   cat(nrow(metadata),
       phyloseq::nsamples(biom),
       length(sample_common), "\n")
-  
-  metadata <- metadata %>% 
+
+  metadata <- metadata %>%
     dplyr::filter(sample_accession_16S %in% sample_common) %>%
     as.data.frame()
   rownames(metadata) <- metadata$sample_accession_16S
-  
-  mat_tax <- tax_table2(biom)
+
+  mat_tax <- smar::tax_table2(biom)
   mat_tax <- cbind(mat_tax, otu = rownames(mat_tax))
-  
-  phylo <- phyloseq::phyloseq(
+
+  physeq <- phyloseq::phyloseq(
     phyloseq::otu_table(biom)[, sample_common],
     phyloseq::sample_data(metadata[sample_common, ]),
     phyloseq::tax_table(mat_tax))
   print(biom)
-  print(phylo)
-  dir.create(paste0("data/phyloseq/", study, "/"), 
-             recursive = TRUE, 
+  print(physeq)
+  dir.create(paste0("data/physeq/", study, "/"),
+             recursive = TRUE,
              showWarnings = TRUE)
-  phylo_species <- phyloseq::tax_glom(phylo, "Rank7")
-  phylo_genera <- phyloseq::tax_glom(phylo_species, "Rank6")
-  save(phylo, file = paste0("data/phyloseq/", study, "/otus.RData"))
-  save(phylo_species, file = paste0("data/phyloseq/", study, "/species.RData"))
-  save(phylo_genera, file = paste0("data/phyloseq/", study, "/genera.RData"))
+  physeq_species <- phyloseq::tax_glom(physeq, "Rank7")
+  physeq_genera <- phyloseq::tax_glom(physeq_species, "Rank6")
+  save(physeq, file = paste0("data/physeq/", study, "/otus.RData"))
+  save(physeq_species, file = paste0("data/physeq/", study, "/species.RData"))
+  save(physeq_genera, file = paste0("data/physeq/", study, "/genera.RData"))
 }
 ```
