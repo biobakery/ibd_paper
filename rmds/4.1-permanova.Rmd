@@ -12,24 +12,20 @@ Perform PERMANOVA analysis on covariates.
 ```{r setup, echo = FALSE}                                           
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
-```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+```{r setup2, include=FALSE}
+smar::sourceDir("functions/")
+setup("./")
 dir_output <- "results/4.1-permanova/"
-dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
-
 # PERMANOVA
 
 ```{r define PERMANOVA models}
 print(studies)
-load("data/phyloseq/genera.RData")
+load("data/physeq/genera.RData")
 
 # create additional variables to test for
-metadata <- sample_data2(phylo_genera)
+metadata <- smar::sample_data2(physeq_genera)
 metadata_test <- metadata %>% 
   dplyr::mutate(subtype = disease,
                 IBD = disease %>% 
@@ -58,7 +54,7 @@ tb_permanova <- tibble::tibble(
                "antibiotics", "immunosuppressants", "steroids", "mesalamine_5ASA",
                "age.cat", "age_at_diagnosis.cat", "gender", "race",
                "subject_accession"),
-  phylo = c("original", "adjusted", "original", "batch_adjusted",
+  physeq = c("original", "adjusted", "original", "batch_adjusted",
             "adjusted", "adjusted",
             "adjusted", "adjusted",
             "adjusted", "adjusted", "adjusted",
@@ -68,7 +64,7 @@ tb_permanova <- tibble::tibble(
   tidyr::crossing(study = c("all", studies)) %>%
   dplyr::left_join(tb_1, by = c("study" = "study_full_name")) %>%
   dplyr::mutate(study_longitudinal = `Longitudinal sampling?` == "Yes") %>%
-  dplyr::select(study, study_longitudinal, variable, phylo)
+  dplyr::select(study, study_longitudinal, variable, physeq)
 
 # specifying models for each study-variable pair
 tb_permanova <- tb_permanova %>%
@@ -177,7 +173,7 @@ tb_permanova <- tb_permanova %>%
       TRUE ~ TRUE)
   ) %>% 
   dplyr::select(study, study_longitudinal,
-                phylo,
+                physeq,
                 variable, variable_type, variable_fit,
                 variable_adjust, variable_adjust_type, variable_adjust_fit,
                 variable_na_fill, variable_na_fit,
@@ -269,12 +265,12 @@ for(i_run in (1:nrow(tb_permanova))) {
   }
   
   # speicfy distance objects to test 
-  if(i_tb_permanova$phylo == "original") 
-    i_dist <- subset_distance(dist_genera, rownames(i_metadata_test))
-  if(i_tb_permanova$phylo == "adjusted") 
-    i_dist <- subset_distance(dist_genera_adj, rownames(i_metadata_test))
-  if(i_tb_permanova$phylo == "batch_adjusted") {
-    i_dist <- subset_distance(dist_genera_adjBatch, rownames(i_metadata_test))
+  if(i_tb_permanova$physeq == "original") 
+    i_dist <- smar::subset_distance(dist_genera, rownames(i_metadata_test))
+  if(i_tb_permanova$physeq == "adjusted") 
+    i_dist <- smar::subset_distance(dist_genera_adj, rownames(i_metadata_test))
+  if(i_tb_permanova$physeq == "batch_adjusted") {
+    i_dist <- smar::subset_distance(dist_genera_adjBatch, rownames(i_metadata_test))
   }
   
   # run the models
