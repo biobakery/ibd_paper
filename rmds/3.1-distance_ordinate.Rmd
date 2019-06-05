@@ -146,11 +146,11 @@ for(i_distance in distance_to_ordinate) {
       physeq_tmp <- phyloseq::subset_samples(physeq_genera, dataset_name %in% study)
       # ordinate original data
       dist_tmp <- get(paste0("dist_", feature_level)) %>% 
-        subset_distance(phyloseq::sample_names(physeq_tmp))
+        smar::subset_distance(phyloseq::sample_names(physeq_tmp))
       ordinate_tmp <- phyloseq::ordinate(physeq_tmp, dist_tmp, method = "MDS")
       assign(paste0("ord_", feature_level, "_", study), ordinate_tmp)
       dist_tmp <- get(paste0("dist_", feature_level, "_adjBatch")) %>% 
-        subset_distance(phyloseq::sample_names(physeq_tmp))
+        smar::subset_distance(phyloseq::sample_names(physeq_tmp))
       ordinate_tmp <- phyloseq::ordinate(physeq_tmp, dist_tmp, method = "MDS")
       assign(paste0("ord_", feature_level, "_", study, "_adjBatch"), ordinate_tmp)
       save(list = paste0("ord_", feature_level, "_", study), 
