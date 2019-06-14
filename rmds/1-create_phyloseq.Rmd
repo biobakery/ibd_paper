@@ -41,7 +41,7 @@ for(study in studies) {
 
 ```{r create phyloseq}
 template <- paste0(dir_processed, "data/template.csv") %>%
-  readr::read_csv()
+  readr::read_csv(col_types = readr::cols(.default = readr::col_character()))
 column_setup <- template$var.class %>%
   dplyr::recode("character" = "c",
                 "numeric" = "d",

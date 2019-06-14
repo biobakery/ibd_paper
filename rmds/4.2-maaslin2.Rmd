@@ -1,5 +1,5 @@
 ---
-title: "4-association"
+title: "4.2-maaslin2"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -7,15 +7,13 @@ html_document:
 df_print: paged
 ---
 # Overview
-Perform association analysis on covariates.
-- PERMANOVA
-- Maaslin2
+Run Maaslin2 models and aggregate effects using random effects modelling
 
 ```{r setup, echo = FALSE}                                           
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, include=FALSE}
-smar::sourceDir("functions/")
+smar::sourceDir("functions/", recursive = FALSE)
 setup("./")
 dir_output <- "results/4.2-maaslin2/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
@@ -24,26 +22,22 @@ dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 # Maaslin2
 ```{r load data}
 source("assets/ma_tests.R")
-load("data/physeq/species_adj.RData")
-metadata <- smar::sample_data2(physeq_species_adj)
+load("data/physeq/genera_adj.RData")
+metadata <- smar::sample_data2(physeq_genera_adj)
 ```
 
 ```{r Maaslin2}
-dir_outputChunk <- paste0(dir_output, "Maaslin2/")
-dir.create(dir_outputChunk)
-
 metadata_test <- metadata %>% 
   dplyr::mutate(race_fill = fill_na(race),
                 gender_fill = fill_na(gender),
                 age.cat_fill = 
                   dplyr::case_when(age < 18 ~ "child",
                                    !is.na(age) ~ "adult",
-                                   TRUE ~ NA_character_) %>% fill_na,
+                                   TRUE ~ NA_character_) %>% 
+                  fill_na(),
                 age_at_diagnosis.cat_fill = 
-                  dplyr::case_when(age_at_diagnosis < 18 ~ "A1",
-                                   age_at_diagnosis < 40 ~ "A2",
-                                   !is.na(age_at_diagnosis) ~ "A3",
-                                   TRUE ~ NA_character_) %>% fill_na,
+                   age_at_diagnosis.cat %>% 
+                  fill_na(),
                 study_site = paste(dataset_name, 
                                    sample_type, 
                                    sep = "_"),
@@ -56,8 +50,8 @@ metadata_test <- metadata %>%
                          subject_accession,
                          NA_character_))
 
-for(feature_level in c("species")) {
-  dir.create(paste0(dir_outputChunk, feature_level, "/"))
+for(feature_level in c("genera")) {
+  dir.create(paste0(dir_output, feature_level, "/"))
   load(paste0("data/physeq/", feature_level, "_adj.RData"))
   mat_otu_adj <- get(paste0("physeq_", feature_level, "_adj")) %>% 
     to_relativeAbundance() %>%  
@@ -67,7 +61,7 @@ for(feature_level in c("species")) {
   for(test in names(l_tests)) {
     print(test)
     test_param <- l_tests[[test]]
-    result <- fit_metaAnalysis(mat_otu = mat_otu_adj,
+    result <- fit_metaAnalysis(feature.abd = mat_otu_adj,
                                data = metadata_test %>%
                                  dplyr::filter(!!test_param$exprs_filter),
                                test_variable = test_param$test_variable,
@@ -82,22 +76,23 @@ for(feature_level in c("species")) {
                                normalization = "NONE",
                                transform = "AST",
                                analysis_method = "LM",
-                               rma_method = "REML",
-                               directory = paste0(dir_outputChunk,
+                               rma.method = "REML",
+                               output = paste0(dir_output,
                                                   feature_level, "/",
                                                   test, "/"),
                                forest.plots = TRUE,
-                               verbose = FALSE)
-    save(result, file = paste0(dir_outputChunk, feature_level, "/",
+                               verbose = FALSE 
+                               )
+    save(result, file = paste0(dir_output, feature_level, "/",
                                test, "/result.RData"))
-    # load(paste0(dir_outputChunk, feature_level, "/",
-    #             test, "/result.RData"))
     l_results[[test]] <- result
   }
   result_all <- l_results %>%
     purrr::imap_dfr(function(result, test) {
       result$tb_summarise %>%
-        tidyr::gather(key = study, value = weight, dplyr::matches("weight_")) %>%
+        tidyr::gather(key = study, 
+                      value = weight, 
+                      dplyr::matches("weight_")) %>%
         dplyr::group_by_at(vars(-weight, -study)) %>%
         dplyr::arrange(desc(weight)) %>%
         dplyr::summarise(max_weight = weight[1],
@@ -111,22 +106,22 @@ for(feature_level in c("species")) {
                                           NA_real_) %>%
                         p.adjust(method = "fdr"))
     })
-  readr::write_tsv(result_all, paste0(dir_outputChunk,
+  readr::write_tsv(result_all, paste0(dir_output,
                                       feature_level,
                                       "/all_results.tsv"))
   
   # Visualization
   # disease status
   plot_metaAnalysis(l_results, tests_disease, "disease",
-                    paste0(dir_outputChunk, feature_level, "/"))
+                    paste0(dir_output, feature_level, "/"))
   # disease subtype
   plot_metaAnalysis(l_results, tests_diseaseSubtype, "disease_subtype",
-                    paste0(dir_outputChunk, feature_level, "/"))
+                    paste0(dir_output, feature_level, "/"))
   # treatment
   plot_metaAnalysis(l_results, tests_treatment, "treatment",
-                    paste0(dir_outputChunk, feature_level, "/"))
+                    paste0(dir_output, feature_level, "/"))
   # covariate
   plot_metaAnalysis(l_results, tests_covariate, "covariate",
-                    paste0(dir_outputChunk, feature_level, "/"))
+                    paste0(dir_output, feature_level, "/"))
 }
 ```
