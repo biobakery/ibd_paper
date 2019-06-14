@@ -1,5 +1,5 @@
 ---
-title: "4.1-association_permanova"
+title: "4.1-permanova"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -13,7 +13,7 @@ Perform PERMANOVA analysis on covariates.
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, include=FALSE}
-smar::sourceDir("functions/")
+smar::sourceDir("functions/", recursive = FALSE)
 setup("./")
 dir_output <- "results/4.1-permanova/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
