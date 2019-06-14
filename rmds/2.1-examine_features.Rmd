@@ -22,7 +22,7 @@ knitr::opts_knit$set(root.dir = "../")
 ```
 
 ```{r setup2, include=FALSE}
-smar::sourceDir("functions/")
+smar::sourceDir("functions/", recursive = FALSE)
 setup("./")
 dir_output <- "results/2.1-examine_features/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
@@ -39,6 +39,7 @@ load("data/physeq/genera_prefilter.RData")
 ```{r check read depths, message=FALSE}
 # check original read count vs. those mapped with taxonamy vs. actual total read count
 # in the OTU table. This goes into supp fig.
+source("functions/manuscript/suppFigures/suppFig_readDepth.R")
 p_compareReadCounts <- 
   suppFig_readDepth(physeq_species_prefilter,
                     physeq_species_prefilter,
@@ -404,13 +405,4 @@ mat_tax_tmp %>%
 mat_tax_tmp %>% 
   tibble::as_tibble(rownames = "otu_cluster") %>% 
   dplyr::filter(Rank5 == "f__Enterobacteriaceae", Rank6 == "g__")
-```
-
-# Examine feature prevalence/abundance distribution after filtering
-
-These figures are fairly big so directly save to supplemental figures.
-```{r feautre prevalence abundance}
-load("data/physeq/species.RData")
-tmp <- suppFig_meidumHighPrevalent(physeq_species)
-tmp <- suppFig_featureMissingFromOne(physeq_species)
 ```

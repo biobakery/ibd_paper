@@ -16,7 +16,7 @@ knitr::opts_knit$set(root.dir = "../")
 ```
 
 ```{r setup2, include=FALSE}
-smar::sourceDir("functions/")
+smar::sourceDir("functions/", recursive = FALSE)
 setup("./")
 ```
 

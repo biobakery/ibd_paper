@@ -24,7 +24,7 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
     dplyr::mutate(min_fdr = min(q.fdr_meta, na.rm = TRUE)) %>% 
     dplyr::ungroup() %>% 
     dplyr::filter(min_fdr < 0.05) %>% 
-    dplyr::mutate(zval = beta/se) %>% 
+    dplyr::mutate(zval = coef/stderr) %>% 
     dplyr::mutate(p_levels = 
                     dplyr::case_when(
                       pval < 0.001 ~ "...",
@@ -40,9 +40,9 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
                       TRUE ~ ""
                     ))
   features_orderedByBeta <- tb_plot %>% 
-    dplyr::select(test, feature, beta) %>% 
-    dplyr::mutate(beta = ifelse(is.na(beta), 0, beta)) %>% 
-    tidyr::spread(key = test, value = beta) %>% 
+    dplyr::select(test, feature, coef) %>% 
+    dplyr::mutate(coef = ifelse(is.na(coef), 0, coef)) %>% 
+    tidyr::spread(key = test, value = coef) %>% 
     as.data.frame() %>% 
     tibble::column_to_rownames("feature") %>% 
     as.matrix() %>% 
@@ -52,11 +52,11 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
     `[`(unique(tb_plot$feature), .)
   p <- tb_plot %>% 
     dplyr::mutate(feature = factor(feature, levels = features_orderedByBeta)) %>%
-    ggplot(aes(x = test, y = feature, fill = beta)) +
+    ggplot(aes(x = test, y = feature, fill = coef)) +
     geom_tile() +
     geom_text(aes(label = paste0(p_levels, "\n", q_levels))) +
     scale_fill_gradient2(low = "blue", high = "red", midpoint = 0) +
-    rotate_xaxis(15)
+    smar::rotate_xaxis(15)
   # features_orderedByZval <- tb_plot %>% 
   #   dplyr::select(test, feature, zval) %>% 
   #   dplyr::mutate(zval = ifelse(is.na(zval), 0, zval)) %>% 
@@ -76,7 +76,7 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
   #   scale_fill_gradient2(low = "blue", high = "red", midpoint = 0)
   ggsave(file = paste0(directory, name, ".pdf"),
          p, 
-         width = 8 + length(tests),
+         width = 12 + length(tests)*1.5,
          height = length(unique(tb_plot$feature)) / 3,
          limitsize = FALSE)
   tb_plot_forest <- l_results[tests] %>% 
@@ -86,12 +86,12 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
         dplyr::mutate(test = test)
     })
   pdf(paste0(directory, name, "_forests.pdf"),
-      width = 6*length(tests), 
+      width = 9*length(tests), 
       height = tb_plot_forest %>% 
         dplyr::group_by(feature, test) %>% 
         dplyr::summarise(n_batch = length(unique(batch))) %>% 
         dplyr::pull(n_batch) %>% 
-        max %>% divide_by(2))
+        max %>% magrittr::divide_by(2))
   for(i_feature in unique(tb_plot$feature)) {
     l_p <- tests %>% 
       purrr::map(function(i_test) {
@@ -103,10 +103,10 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
           dplyr::add_row(batch = "MA Effect", 
                          coef = tb_plot %>% 
                            dplyr::filter(feature == i_feature, test == i_test) %>% 
-                           dplyr::pull(beta),
+                           dplyr::pull(coef),
                          stderr = tb_plot %>% 
                            dplyr::filter(feature == i_feature, test == i_test) %>% 
-                           dplyr::pull(se)) %>% 
+                           dplyr::pull(stderr)) %>% 
           ggplot(aes(x = batch, y = coef, color = batch == "MA Effect")) +
           geom_point() +
           geom_errorbar(aes(ymin = coef - 1.96*stderr, ymax = coef + 1.96*stderr), width = 0.5) +
@@ -116,7 +116,7 @@ plot_metaAnalysis <- function(l_results, tests, name, directory) {
           ggtitle(i_test)
       })
     p <- cowplot::plot_grid(plotlist = l_p, nrow = 1) %>% 
-      cowplot_title(i_feature)
+      smar::cowplot_title(i_feature)
     print(p)
   }
   dev.off()
@@ -131,7 +131,7 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
                                         directory) {
   
   result <- fit.lm.meta$meta.results %>% 
-    dplyr::select(feature, exposure, beta, se, pval, k) %>% 
+    dplyr::select(feature, exposure, coef, stderr, pval, k) %>% 
     dplyr::mutate(moderator = "",
                   moderator_level = "overall",
                   MA_effect = "overall",
@@ -158,7 +158,7 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
     dplyr::mutate(min_fdr = min(q.fdr_meta[moderator_level %in% "difference"], na.rm = TRUE)) %>% 
     dplyr::ungroup() %>% 
     dplyr::filter(min_fdr < q.cutoff) %>% 
-    dplyr::mutate(zval = beta/se) %>% 
+    dplyr::mutate(zval = coef/stderr) %>% 
     dplyr::mutate(p_levels = 
                     dplyr::case_when(
                       pval < 0.001 ~ "...",
@@ -173,24 +173,26 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
                       q.fdr_meta < 0.05 ~ "*",
                       TRUE ~ ""
                     ))
-  features_orderedByBeta <- tb_plot %>% 
-    dplyr::select(MA_effect, feature, beta) %>% 
-    dplyr::mutate(beta = ifelse(is.na(beta), 0, beta)) %>% 
-    tidyr::spread(key = MA_effect, value = beta) %>% 
-    as.data.frame() %>% 
-    tibble::column_to_rownames("feature") %>% 
-    as.matrix() %>% 
-    dist() %>% 
-    hclust(method = "average") %>% 
-    extract2("order") %>% 
-    `[`(unique(tb_plot$feature), .)
+  if(length(unique(tb_plot$feature)) > 4) {
+    features_orderedByBeta <- tb_plot %>% 
+      dplyr::select(MA_effect, feature, coef) %>% 
+      dplyr::mutate(coef = ifelse(is.na(coef), 0, coef)) %>% 
+      tidyr::spread(key = MA_effect, value = coef) %>% 
+      as.data.frame() %>% 
+      tibble::column_to_rownames("feature") %>% 
+      as.matrix() %>% 
+      dist() %>% 
+      hclust(method = "average") %>% 
+      extract2("order") %>% 
+      `[`(unique(tb_plot$feature), .)
+  } else features_orderedByBeta <- unique(tb_plot$feature)
   p <- tb_plot %>% 
     dplyr::mutate(feature = factor(feature, levels = features_orderedByBeta)) %>%
-    ggplot(aes(x = MA_effect, y = feature, fill = beta)) +
+    ggplot(aes(x = MA_effect, y = feature, fill = coef)) +
     geom_tile() +
     geom_text(aes(label = paste0(p_levels, "\n", q_levels))) +
     scale_fill_gradient2(low = "blue", high = "red", midpoint = 0) +
-    rotate_xaxis(15)
+    smar::rotate_xaxis(15)
   # features_orderedByZval <- tb_plot %>% 
   #   dplyr::select(test, feature, zval) %>% 
   #   dplyr::mutate(zval = ifelse(is.na(zval), 0, zval)) %>% 
@@ -210,8 +212,8 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
   #   scale_fill_gradient2(low = "blue", high = "red", midpoint = 0)
   ggsave(file = paste0(directory, test, ".pdf"),
          p, 
-         width = 8 + length(levels.MA_effect),
-         height = length(unique(tb_plot$feature)) / 3,
+         width = 12 + length(levels.MA_effect)*1.5,
+         height = max(c(length(unique(tb_plot$feature)) / 3), 6),
          limitsize = FALSE)
   tb_plot_forest <- fit.lm.meta$ind.results %>% 
     purrr::reduce(rbind) %>% 
@@ -220,8 +222,8 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
   suppressWarnings(tb_plot_forest <- tb_plot %>% 
                      dplyr::transmute(feature = feature,
                                       value = exposure,
-                                      coef = beta,
-                                      stderr = se,
+                                      coef = coef,
+                                      stderr = stderr,
                                       pval = pval,
                                       batch = MA_effect, 
                                       moderator = moderator,
@@ -232,12 +234,14 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
                                       by = c("batch")))
     
   pdf(paste0(directory, test, "_forests.pdf"),
-      width = 8*ncol(data.moderator), 
+      width = 12*ncol(data.moderator), 
       height = tb_plot_forest %>% 
         dplyr::group_by(feature) %>% 
         dplyr::summarise(n_batch = length(unique(batch))) %>% 
         dplyr::pull(n_batch) %>% 
-        max %>% divide_by(2))
+        max %>% divide_by(2) %>% 
+        c(6) %>% 
+        max())
   for(i_feature in unique(tb_plot$feature)) {
     l_p <- colnames(data.moderator) %>% 
       purrr::map(function(variable.moderator) {
@@ -271,7 +275,7 @@ plot_metaAnalysis_moderator <- function(fit.lm.meta,
                     unlist() %>% paste(collapse = "\n"))
       })
     p <- cowplot::plot_grid(plotlist = l_p, nrow = 1) %>% 
-      cowplot_title(i_feature, rel_heights = c(0.5, 10))
+      smar::cowplot_title(i_feature, rel_heights = c(0.5, 10))
     print(p)
   }
   dev.off()

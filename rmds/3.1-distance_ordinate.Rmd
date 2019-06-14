@@ -16,7 +16,7 @@ knitr::opts_knit$set(root.dir = "../")
 ```
 
 ```{r setup2, include=FALSE}
-smar::sourceDir("functions/")
+smar::sourceDir("functions/", recursive = FALSE)
 setup("./")
 dir_output <- "results/3.1-distance_ordinate/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
@@ -161,6 +161,4 @@ for(i_distance in distance_to_ordinate) {
   }
 }
 print(Sys.time() - start.time)
-
-
 ```
