@@ -110,13 +110,8 @@ tb_permanova <- tb_permanova %>%
     # per-sample (i.e., free) permutation
     study != "all" & study_longitudinal & (variable %in% c("batch", "subject_accession")) ~ 
       "sample",
-    # Testing cross-sectional study, variable is per-subject,
-    # run permutation with subject blocking structure
-    study != "all" & !study_longitudinal & variable_type == "subject" ~ 
-      "subject",
-    # Testing cross-sectional study, variable is per-sample, run per-sample
-    # (i.e., free) permutation
-    study != "all" & !study_longitudinal & variable_type == "sample" ~ 
+    # Testing cross-sectional study
+    study != "all" & !study_longitudinal ~ 
       "sample",
     TRUE ~ NA_character_
   )) %>% 
