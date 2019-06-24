@@ -40,7 +40,7 @@ suppFig_meidumHighPrevalent <-
       dplyr::summarise(median_read_depth = median(log2(read_depth)))
     
     tb_mediumPrev <- tb_summarise %>% 
-      dplyr::filter(prevalence <= 0.7, n_absent == 0) %>% 
+      dplyr::filter(n_absent == 0, prevalence < 0.7) %>% 
       dplyr::group_by(feature) %>% 
       dplyr::mutate(spread = IQR(prevalence_study),
                     label = ifelse(is_outlier_label(prevalence_study, adj = 0.05),
@@ -111,24 +111,24 @@ suppFig_meidumHighPrevalent <-
             axis.text = element_text(size = 10)) 
     
     # check Bifido age correlation
-    tb_age_summary <- physeq %>% 
-      smar::sample_data2() %>% 
-      dplyr::group_by(dataset_name) %>% 
-      dplyr::summarise(median_age = median(age, na.rm = TRUE))
-    tb_summarise %>% 
-      dplyr::filter(feature %in% 
-                      "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__bifidum" ) %>% 
-      dplyr::left_join(tb_age_summary, by = "dataset_name") %>% 
-      dplyr::summarise(rho.spearman = cor(prevalence_study, median_age, method = "spearman",
-                                          use = "pairwise.complete.obs"),
-                       p.spearman = cor.test(prevalence_study, median_age, 
-                                             method = "spearman", 
-                                             alternative = "less", 
-                                             exact = FALSE)$p.value) %>% 
-      print()
+    # tb_age_summary <- physeq %>% 
+    #   smar::sample_data2() %>% 
+    #   dplyr::group_by(dataset_name) %>% 
+    #   dplyr::summarise(median_age = median(age, na.rm = TRUE))
+    # tb_summarise %>% 
+    #   dplyr::filter(feature %in% 
+    #                   "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium" ) %>% 
+    #   dplyr::left_join(tb_age_summary, by = "dataset_name") %>% 
+    #   dplyr::summarise(rho.spearman = cor(prevalence_study, median_age, method = "spearman",
+    #                                       use = "pairwise.complete.obs"),
+    #                    p.spearman = cor.test(prevalence_study, median_age, 
+    #                                          method = "spearman", 
+    #                                          alternative = "less", 
+    #                                          exact = FALSE)$p.value) %>% 
+    #   print()
     
     p_highPrev <- tb_summarise %>% 
-      dplyr::filter(prevalence > 0.7) %>% 
+      dplyr::filter(n_absent == 0, prevalence >= 0.7) %>% 
       dplyr::group_by(feature) %>% 
       dplyr::mutate(spread = IQR(mean_abundance),
                     label = ifelse(is_outlier_label(mean_abundance, adj = 0.005),
@@ -163,16 +163,17 @@ suppFig_meidumHighPrevalent <-
                    p_highPrev = p_highPrev)
     if(!is.null(path))
       cowplot::plot_grid(p_mediumPrev, p_cor, rel_widths = c(3, 1), nrow = 1) %>% 
-      cowplot::plot_grid(p_highPrev, rel_heights = c(5, 2.5), ncol = 1,
+      cowplot::plot_grid(p_highPrev, ., rel_heights = c(1, 2), ncol = 1,
                          labels = c("a", "b"),
-                         label_size = 16) %>% 
+                         label_size = 30,
+                         label_fontface = "plain") %>% 
       ggsave(filename = path, 
              .,
              height = 15,
              width = 16)
     return(p_list)
   }
-
+suppFig_meidumHighPrevalent(physeq_genera)
 suppFig_featureMissingFromOne <- 
   function(physeq,
            path = "supp_materials/suppFigures/suppFig_featureMissingFromOne.pdf") {
@@ -196,10 +197,10 @@ suppFig_featureMissingFromOne <-
                       stringr::str_replace_all("\\|NA.*", ""))
     
     p_featureMissingFromOne <- tb_summarise %>% 
-      dplyr::filter(prevalence <= 0.7, n_absent >= 1, prevalence_study > 0) %>% 
+      dplyr::filter(n_absent >= 1, prevalence_study > 0) %>% 
       dplyr::group_by(feature, n_absent) %>% 
       dplyr::mutate(n_prevalent = dplyr::n(),
-                    include = max(prevalence_study) > 0.05,
+                    include = max(prevalence_study) > 0.1,
                     spread = IQR(mean_abundance),
                     label = ifelse(is_outlier_upper_label(mean_abundance, adj = 0.001),
                                    Study,
@@ -230,7 +231,7 @@ suppFig_featureMissingFromOne <-
                                size = 2,
                                min.segment.length = 0) +
       geom_text(aes(label = study_present,
-                    y = mean_abundance + 0.001, 
+                    y = mean_abundance + 0.001,
                     hjust = 0), size = 2) +
       facet_wrap(.~n_prevalent_group, scales = "free_y", nrow = 3) +
       theme(axis.text.y = element_text(size = 5)) +
@@ -248,3 +249,4 @@ suppFig_featureMissingFromOne <-
              width = 30)
     return(p_featureMissingFromOne)
   }
+p <- suppFig_featureMissingFromOne(physeq_genera)

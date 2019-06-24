@@ -1,3 +1,6 @@
+load("data/physeq/genera_prefilter.RData")
+load("data/physeq/genera.RData")
+source("assets/tb_1.R")
 suppFig_readDepth <- function(physeq_readCount, # for plotting read counts
                               physeq_prefilter, # these two are for generating 
                               physeq_postfilter,  # nFeature vs. lib size plots
@@ -76,7 +79,7 @@ suppFig_readDepth <- function(physeq_readCount, # for plotting read counts
     facet_wrap(~filtering,
                scales = "free_y") +
     geom_text(aes(x = x_pos, y = y_pos, label = label), hjust = 0, vjust = 0.8) +
-    xlab("Median log2 read depth") + ylab("# Present species")
+    xlab("Median log2 read depth") + ylab("# Present genera")
   
   p_list <- list(p_compareReadCounts = p_compareReadCounts,
                  p_nFeatureVsReadDepth = p_nFeatureVsReadDepth)
@@ -85,9 +88,12 @@ suppFig_readDepth <- function(physeq_readCount, # for plotting read counts
            cowplot::plot_grid(plotlist = p_list, 
                               nrow = nrow, rel_heights = rel_heights, 
                               labels = labels,
-                              label_size = 16),
+                              label_size = 25,
+                              label_fontface = "plain"),
            width = width,
            height = height)
   }
   return(p_list)
 }
+suppFig_readDepth(physeq_genera, physeq_genera_prefilter, physeq_genera)
+ 
