@@ -9,10 +9,10 @@ load("data/physeq/genera_adj.RData")
 tax_table <- smar::tax_table2(physeq_genera_adj)
 
 suppTable_interaction <- function(l_results,
-                         tests_disease,
-                         tests_treatment,
-                         tax_table,
-                         path = "supp_materials/suppTables/") {
+                                  tests_disease,
+                                  tests_treatment,
+                                  tax_table,
+                                  path = "supp_materials/suppTables/") {
   ll_tb_write <- list(disease = tests_disease,
                       treatment = tests_treatment) %>% 
     purrr::imap(function(tests, name_tests) {
@@ -22,33 +22,34 @@ suppTable_interaction <- function(l_results,
                              i_test,
                              "_moderator_results.tsv") %>% 
           readr::read_tsv() %>% 
-          dplyr::filter(moderator_level == "difference",
-                        !is.na(coef)) %>% 
-          dplyr::group_by(feature) %>% 
-          dplyr::filter(max(k) >= 2) %>% 
-          dplyr::ungroup() %>% 
-          dplyr::group_by(moderator_level) %>% 
+          dplyr::filter(!is.na(coef), k >= 2) %>% 
+          dplyr::group_by(moderator, moderator_level) %>% 
           dplyr::mutate(qval.fdr_meta = pval %>% p.adjust("fdr")) %>% 
           dplyr::ungroup() %>% 
-          dplyr::mutate(batch = moderator %>% 
-                          dplyr::recode(sample_type = "stool vs. biopsy",
-                                        disease = "UC vs. CD") %>% 
-                          paste0("MA effect (", ., ")")) %>% 
+          dplyr::mutate(batch = 
+                          dplyr::case_when(
+                            moderator_level == "stool" ~ "MA effect (stool)",
+                            moderator_level == "biopsy" ~ "MA effect (biopsy)",
+                            moderator_level == "CD" ~ "MA effect (CD)",
+                            moderator_level == "UC" ~ "MA effect (UC)",
+                            moderator_level == "difference" & moderator == "sample_type" ~ "MA effect (stool vs. biopsy)",
+                            moderator_level == "difference" & moderator == "disease" ~ "MA effect (UC vs. CD)")) %>% 
           dplyr::group_by(feature) %>% 
-          dplyr::filter(min(qval.fdr_meta) < 0.05) %>% 
+          dplyr::filter(min(qval.fdr_meta[moderator_level == "difference"]) < 0.05) %>% 
           dplyr::ungroup() %>% 
           dplyr::select(feature, coef, stderr, pval, qval.fdr_meta, batch)
         if(nrow(result_all) == 0) return(data.frame(Feature = NULL,
-                                                        `Cohort strata` = NULL,
-                                                        `Effect size` = NULL,
-                                                        `Standard error` = NULL,
-                                                        `P value` = NULL,
-                                                        `Q value` = NULL))
+                                                    `Cohort strata` = NULL,
+                                                    `Effect size` = NULL,
+                                                    `Standard error` = NULL,
+                                                    `P value` = NULL,
+                                                    `Q value` = NULL))
         # individual study effects
         result_all <- l_results[[i_test]]$result$ind.results %>% 
           purrr::map_dfr(~ .x) %>% 
           dplyr::select(feature, coef, stderr, batch) %>% 
-          dplyr::filter(feature %in% result_all$feature) %>% 
+          dplyr::filter(feature %in% result_all$feature,
+                        !is.na(coef)) %>% 
           dplyr::bind_rows(result_all) %>% 
           dplyr::mutate(feature = feature %>% 
                           stringr::str_replace_all(stringr::fixed("|NA|NA"), ""))
@@ -62,6 +63,8 @@ suppTable_interaction <- function(l_results,
                                   batch,
                                   .)} %>% 
                           factor(levels = c(df_moderator_site$study_site,
+                                            "MA effect (biopsy)",
+                                            "MA effect (stool)",
                                             "MA effect (stool vs. biopsy)",
                                             "MA effect (UC vs. CD)")))
         if(name_tests == "treatment")
@@ -73,7 +76,11 @@ suppTable_interaction <- function(l_results,
                                   batch,
                                   .)} %>% 
                           factor(levels = c(df_moderator_siteDisease$study_site_disease,
+                                            "MA effect (biopsy)",
+                                            "MA effect (stool)",
                                             "MA effect (stool vs. biopsy)",
+                                            "MA effect (CD)",
+                                            "MA effect (UC)",
                                             "MA effect (UC vs. CD)")))
         
         # order
@@ -108,3 +115,6 @@ suppTable_interaction <- function(l_results,
   writexl::write_xlsx(l_sheets, path = paste0(path, "suppTable_interaction.xlsx"), format_headers = FALSE)
   return(l_sheets)
 }
+suppTable_interaction(l_results = l_results,
+                      tests_disease = tests_disease,
+                      tests_treatment = tests_treatment)
