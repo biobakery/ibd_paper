@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/")
+smar::sourceDir("functions/simulations/")
 setup("./")
 dir_output <- "results/simulations/adjust.batch/"
 ```
@@ -45,21 +42,21 @@ results <-  foreach::`%dopar%` (
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     R2_positive_control1 <- vegan::adonis(D ~ positive_control1,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control1", "R2"]
     R2_positive_control2 <- vegan::adonis(D ~ positive_control2,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control2", "R2"]
     R2_negative_control <- vegan::adonis(D ~ negative_control,
-                                         data = sample_data2(phylo),
+                                         data = smar::sample_data2(phylo),
                                          permutations = 2)$aov.tab["negative_control", "R2"]
     
     
@@ -102,21 +99,21 @@ results_correct <- foreach::`%dopar%`(
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     R2_positive_control1 <- vegan::adonis(D ~ positive_control1,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control1", "R2"]
     R2_positive_control2 <- vegan::adonis(D ~ positive_control2,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control2", "R2"]
     R2_negative_control <- vegan::adonis(D ~ negative_control,
-                                         data = sample_data2(phylo),
+                                         data = smar::sample_data2(phylo),
                                          permutations = 2)$aov.tab["negative_control", "R2"]
     
     
@@ -163,22 +160,22 @@ results_ComBat <- foreach::`%dopar%`(
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
 
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     R2_positive_control1 <- vegan::adonis(D ~ positive_control1,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control1", "R2"]
     R2_positive_control2 <- vegan::adonis(D ~ positive_control2,
-                                          data = sample_data2(phylo),
+                                          data = smar::sample_data2(phylo),
                                           permutations = 2)$aov.tab["positive_control2", "R2"]
     R2_negative_control <- vegan::adonis(D ~ negative_control,
-                                         data = sample_data2(phylo),
+                                         data = smar::sample_data2(phylo),
                                          permutations = 2)$aov.tab["negative_control", "R2"]
     
     
@@ -234,20 +231,20 @@ print(Sys.time() - start.time)
 #     phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
 #     sample_data(df_metadata)) %>%
 #     transform_sample_counts(MMUPHin:::tss) %>%
-#     prune_taxaSamples()
+#     smar::prune_taxaSamples()
 #   D <- distance(phylo, method = "bray")
 #   D <- distance(phylo, method = "bray")
 #   R2_batch <- vegan::adonis(D ~ batch,
-#                             data = sample_data2(phylo),
+#                             data = smar::sample_data2(phylo),
 #                             permutations = 2)$aov.tab["batch", "R2"]
 #   R2_positive_control1 <- vegan::adonis(D ~ positive_control1,
-#                                         data = sample_data2(phylo),
+#                                         data = smar::sample_data2(phylo),
 #                                         permutations = 2)$aov.tab["positive_control1", "R2"]
 #   R2_positive_control2 <- vegan::adonis(D ~ positive_control2,
-#                                         data = sample_data2(phylo),
+#                                         data = smar::sample_data2(phylo),
 #                                         permutations = 2)$aov.tab["positive_control2", "R2"]
 #   R2_negative_control <- vegan::adonis(D ~ negative_control,
-#                                        data = sample_data2(phylo),
+#                                        data = smar::sample_data2(phylo),
 #                                        permutations = 2)$aov.tab["negative_control", "R2"]
 #   
 #   
