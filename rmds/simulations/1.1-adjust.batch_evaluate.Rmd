@@ -10,8 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-smar::sourceDir("functions/")
-smar::sourceDir("functions/simulations/")
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/adjust.batch/"
 ```

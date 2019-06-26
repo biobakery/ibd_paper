@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/discrete/"
 ```
@@ -29,30 +26,24 @@ load(paste0(dir_output, "evaluate_after.RData"))
 # effect sizes
 tb_sim <- tb_sim %>% 
   dplyr::mutate(effect_cluster = effectSize %>% 
-                  purrr::map_dbl("cluster") %>% 
-                  factor(levels = c(5, 10)),
+                  purrr::map_dbl("cluster"),
                 effect_batch = effectSize %>% 
                   purrr::map_dbl("batch") %>% 
-                  factor(levels = 0:10)) %>% 
-  dplyr::arrange(nCluster, effect_cluster) %>% 
-  dplyr::mutate(nCluster_effectCluster = paste0("#Cluster = ", nCluster, ", ",
-                                                "effect = ", effect_cluster) %>% 
-                  factor(levels = unique(.)))
-# nCluster
-tb_sim <- tb_sim %>% 
-  dplyr::mutate(nCluster = factor(nCluster, levels = 3:6))
+                  forcats::as_factor() %>% forcats::fct_inseq(),
+                nCluster = nCluster %>% 
+                  forcats::as_factor() %>% forcats::fct_inseq())
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nSample, nBatch) %>% 
   dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
                                         "nBatch = ", nBatch) %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 # nMicrobe and percMicrobe spiked
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
   dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
                                             spikeMicrobes*100, "% spiked") %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 ```
 ```{r summarise results}
 # R2 sanity check
@@ -73,7 +64,7 @@ tb_R2 <- tb_R2 %>%
   dplyr::mutate(Variable = factor(Variable, 
                                   levels = c("batch", "cluster")),
                 Data = factor(Data, levels = names(colors_base)))
-# continuous results
+# discrete results
 # aggregate results into df format
 tb_results <- list(results, results_correct) %>% 
   purrr::map2_dfr(
@@ -85,14 +76,13 @@ tb_results <- list(results, results_correct) %>%
       ) %>% 
       dplyr::mutate(Data = .y)
   ) 
+# format variables
+tb_results <- tb_results %>% 
+  dplyr::mutate(Data = factor(Data, levels = names(colors_base)))
 # sanity check
 # all simulation runs were successful
 # mean(tb_results$results %>% purrr::map_lgl(~is.null(.x)))
 # format results
-tb_summary <- tb_results %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(names(colors_base))),
-                Cor = results %>% 
-                  purrr::map_dbl("correlation"))
 # calculate successes
 tb_results <- tb_results %>% 
   dplyr::left_join(tb_sim, by = "i") %>% 
@@ -113,13 +103,13 @@ tb_summary <- tb_results %>%
 # R2 sanity check
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
-for(i.effect in levels(tb_plot$nCluster_effectCluster)) {
+for(i.cluster in levels(tb_plot$nCluster)) {
   plist <- (1:nlevels(tb_plot$Variable)) %>% 
     purrr::map(function(i) {
       i.Variable <- levels(tb_plot$Variable)[i]
       p <- tb_plot %>% 
         dplyr::filter(Variable == i.Variable,
-                      nCluster_effectCluster == i.effect) %>% 
+                      nCluster == i.cluster) %>% 
         ggplot(aes(x = effect_batch, y = R2, color = Data)) +
         geom_boxplot() +
         facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
@@ -129,7 +119,7 @@ for(i.effect in levels(tb_plot$nCluster_effectCluster)) {
               legend.background = element_blank(),
               strip.text = element_text(size = 8),
               legend.text = element_text(size = 8)) +
-        xlab("Batch effect") +
+        xlab("Simulatd strength of batch effect") +
         ggtitle(i.Variable)
       if(i >= 2)
         p <- p + theme(legend.position = "none")
@@ -138,143 +128,138 @@ for(i.effect in levels(tb_plot$nCluster_effectCluster)) {
   cowplot::plot_grid(plotlist = plist,
                      nrow = 2) %>% 
     ggsave(paste0(dir_output, 
-                  "R2_effectCluster_", 
-                  i.effect, 
+                  "R2_nCluster_", 
+                  i.cluster, 
                   ".pdf"),
            .,
-           width = 15, height = 15)
+           width = 10, height = 10)
 }
 
 # summary plot
 tb_plot <- tb_summary %>% 
   dplyr::left_join(dplyr::filter(tb_sim, !duplicated(i_setup)),
                    by = "i_setup") %>% 
-  dplyr::filter(!(effect_batch == 0 &Data == "MMUPHin corrected"))
-for(i.effect in levels(tb_plot$effect_cluster)) {
-  plist <- (1:nlevels(tb_plot$nCluster)) %>% 
-    purrr::map(function(i) {
-      i.nCluster <- levels(tb_plot$nCluster)[i]
-      p <- tb_plot %>% 
-        dplyr::filter(nCluster == i.nCluster,
-                      effect_cluster == i.effect) %>% 
-        ggplot(aes(x = effect_batch, y = mean_success, color = Data)) +
-        geom_point(position = position_dodge(width = 0.5)) +
-        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_adjust.batch) +
-        theme(legend.position = c(1, 1),
-              legend.justification = c(1, 1),
-              legend.background = element_blank(),
-              strip.text = element_text(size = 8),
-              legend.text = element_text(size = 8)) +
-        xlab("Batch effect") +
-        ggtitle(i.Variable)
-      if(i >= 2)
-        p <- p + theme(legend.position = "none")
-      return(p)
-    })
-  cowplot::plot_grid(plotlist = plist,
-                     nrow = 2) %>% 
-    ggsave(paste0(dir_output, 
-                  "summary_effectCluster_", 
-                  i.effect, 
-                  ".pdf"),
-           .,
-           width = 20, height = 10)
-}
+  dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
+plist <- (1:nlevels(tb_plot$nCluster)) %>% 
+  purrr::map(function(i) {
+    i.nCluster <- levels(tb_plot$nCluster)[i]
+    p <- tb_plot %>% 
+      dplyr::filter(nCluster == i.nCluster) %>% 
+      ggplot(aes(x = effect_batch, y = mean_success, color = Data)) +
+      geom_point(position = position_dodge(width = 0.5)) +
+      facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+      scale_color_manual(values = colors_simulation_adjust.batch) +
+      theme(legend.position = c(1, 1),
+            legend.justification = c(1, 1),
+            legend.background = element_blank(),
+            strip.text = element_text(size = 8),
+            legend.text = element_text(size = 8)) +
+      xlab("Simulatd strength of batch effect") +
+      ylab("Success rate")
+      ggtitle(paste0("#Clusters = ", i.nCluster))
+    if(i != 2)
+      p <- p + theme(legend.position = "none")
+    return(p)
+  })
+cowplot::plot_grid(plotlist = plist,
+                   nrow = 2) %>% 
+  ggsave(paste0(dir_output, "summary.pdf"),
+         .,
+         width = 20, height = 6)
 ```
 ```{r find example case}
-is <- tb_sim %>% 
-  dplyr::filter(nCluster == 3, effect_batch == 10, effect_cluster == 10,
-                nBatch == 2, nSample == 1000) %>% 
-  extract2("i")
-for(i in is) {
-  mat_otu <- read.table(paste0(dir_output,
-                               "sparseDOSSA_sets/",
-                               i, ".tsv"),
-                        header = TRUE,
-                        sep = "\t") %>% 
-    as.matrix
-  rownames(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
-  i_simSetup <- tb_sim[i, ]
-  df_metadata <- tb_sim[i, ]$df_metadata[[1]]
-  
-  phylo <- phyloseq::phyloseq(
-    phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-    sample_data(df_metadata)) %>%
-    transform_sample_counts(MMUPHin:::tss) %>%
-    prune_taxaSamples()
-  
-  mat_otu_adj <- mat_otu %>% 
-      MMUPHin::adjust.batch(batch = "batch", 
-                            data = df_metadata,
-                            diagnostics = FALSE, 
-                            verbose = FALSE)
-  phylo_adj <- phyloseq::phyloseq(
-    phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
-    sample_data(df_metadata)) %>%
-    transform_sample_counts(MMUPHin:::tss) %>%
-    prune_taxaSamples()
-  
-  l_p <- list(phylo, phylo_adj) %>% 
-    purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
-      ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
-      list(cluster = plot_ordination(phylo, ordination = ordination, color = "cluster") +
-             ggtitle(Data),
-           batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
-             ggtitle(Data))
-    })
-  
-  cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
-                                     l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
-    ggsave(filename = paste0(dir_output, "example_ordination_", i, ".pdf"),
-           .,
-           width = 10, height = 8)
-}
-is <- tb_sim %>% 
-  dplyr::filter(nCluster == 3, effect_batch == 0, effect_cluster == 10,
-                nBatch == 2, nSample == 1000) %>% 
-  extract2("i")
-for(i in is) {
-  mat_otu <- read.table(paste0(dir_output,
-                               "sparseDOSSA_sets/",
-                               i, ".tsv"),
-                        header = TRUE,
-                        sep = "\t") %>% 
-    as.matrix
-  rownames(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
-  i_simSetup <- tb_sim[i, ]
-  df_metadata <- tb_sim[i, ]$df_metadata[[1]]
-  
-  phylo <- phyloseq::phyloseq(
-    phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-    sample_data(df_metadata)) %>%
-    transform_sample_counts(MMUPHin:::tss) %>%
-    prune_taxaSamples()
-  
-  mat_otu_adj <- mat_otu %>% 
-      MMUPHin::adjust.batch(batch = "batch", 
-                            data = df_metadata,
-                            diagnostics = FALSE, 
-                            verbose = FALSE)
-  phylo_adj <- phyloseq::phyloseq(
-    phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
-    sample_data(df_metadata)) %>%
-    transform_sample_counts(MMUPHin:::tss) %>%
-    prune_taxaSamples()
-  
-  l_p <- list(phylo, phylo_adj) %>% 
-    purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
-      ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
-      list(cluster = plot_ordination(phylo, ordination = ordination, color = "cluster") +
-             ggtitle(Data),
-           batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
-             ggtitle(Data))
-    })
-  
-  cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
-                                     l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
-    ggsave(filename = paste0(dir_output, "example_ordination_", i, "_null.pdf"),
-           .,
-           width = 10, height = 8)
-}
+# is <- tb_sim %>% 
+#   dplyr::filter(nCluster == 3, effect_batch == 10, effect_cluster == 10,
+#                 nBatch == 2, nSample == 1000) %>% 
+#   extract2("i")
+# for(i in is) {
+#   mat_otu <- read.table(paste0(dir_output,
+#                                "sparseDOSSA_sets/",
+#                                i, ".tsv"),
+#                         header = TRUE,
+#                         sep = "\t") %>% 
+#     as.matrix
+#   rownames(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
+#   i_simSetup <- tb_sim[i, ]
+#   df_metadata <- tb_sim[i, ]$df_metadata[[1]]
+#   
+#   phylo <- phyloseq::phyloseq(
+#     phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+#     sample_data(df_metadata)) %>%
+#     transform_sample_counts(MMUPHin:::tss) %>%
+#     prune_taxaSamples()
+#   
+#   mat_otu_adj <- mat_otu %>% 
+#       MMUPHin::adjust.batch(batch = "batch", 
+#                             data = df_metadata,
+#                             diagnostics = FALSE, 
+#                             verbose = FALSE)
+#   phylo_adj <- phyloseq::phyloseq(
+#     phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
+#     sample_data(df_metadata)) %>%
+#     transform_sample_counts(MMUPHin:::tss) %>%
+#     prune_taxaSamples()
+#   
+#   l_p <- list(phylo, phylo_adj) %>% 
+#     purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
+#       ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
+#       list(cluster = plot_ordination(phylo, ordination = ordination, color = "cluster") +
+#              ggtitle(Data),
+#            batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
+#              ggtitle(Data))
+#     })
+#   
+#   cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
+#                                      l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
+#     ggsave(filename = paste0(dir_output, "example_ordination_", i, ".pdf"),
+#            .,
+#            width = 10, height = 8)
+# }
+# is <- tb_sim %>% 
+#   dplyr::filter(nCluster == 3, effect_batch == 0, effect_cluster == 10,
+#                 nBatch == 2, nSample == 1000) %>% 
+#   extract2("i")
+# for(i in is) {
+#   mat_otu <- read.table(paste0(dir_output,
+#                                "sparseDOSSA_sets/",
+#                                i, ".tsv"),
+#                         header = TRUE,
+#                         sep = "\t") %>% 
+#     as.matrix
+#   rownames(mat_otu) <- paste0("Feature", 1:nrow(mat_otu))
+#   i_simSetup <- tb_sim[i, ]
+#   df_metadata <- tb_sim[i, ]$df_metadata[[1]]
+#   
+#   phylo <- phyloseq::phyloseq(
+#     phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+#     sample_data(df_metadata)) %>%
+#     transform_sample_counts(MMUPHin:::tss) %>%
+#     prune_taxaSamples()
+#   
+#   mat_otu_adj <- mat_otu %>% 
+#       MMUPHin::adjust.batch(batch = "batch", 
+#                             data = df_metadata,
+#                             diagnostics = FALSE, 
+#                             verbose = FALSE)
+#   phylo_adj <- phyloseq::phyloseq(
+#     phyloseq::otu_table(mat_otu_adj, taxa_are_rows = TRUE),
+#     sample_data(df_metadata)) %>%
+#     transform_sample_counts(MMUPHin:::tss) %>%
+#     prune_taxaSamples()
+#   
+#   l_p <- list(phylo, phylo_adj) %>% 
+#     purrr::map2(c("Original", "MMUPHin adjusted"), function(phylo, Data) {
+#       ordination <- phyloseq::ordinate(phylo, method = "MDS", distance = "bray")
+#       list(cluster = plot_ordination(phylo, ordination = ordination, color = "cluster") +
+#              ggtitle(Data),
+#            batch = plot_ordination(phylo, ordination = ordination, color = "batch") +
+#              ggtitle(Data))
+#     })
+#   
+#   cowplot::plot_grid(plotlist = list(l_p[[1]]$cluster, l_p[[2]]$cluster,
+#                                      l_p[[1]]$batch, l_p[[2]]$batch), nrow = 2) %>% 
+#     ggsave(filename = paste0(dir_output, "example_ordination_", i, "_null.pdf"),
+#            .,
+#            width = 10, height = 8)
+# }
 ```
