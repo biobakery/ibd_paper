@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/")
+smar::sourceDir("functions/simulations/")
 setup("./")
 dir_output <- "results/simulations/discrete/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
@@ -41,7 +38,7 @@ effectSize <- tibble::tibble(effectSize =
                                (1:nrow(tb_effectSize)) %>%
                                purrr::map(function(i) unlist(tb_effectSize[i, ])))
 # replicates
-rep <- 1:10
+rep <- 1:20
 # metadata simulation
 fDummyData <- TRUE
 fDummyDirection <- TRUE
@@ -57,15 +54,15 @@ tb_simSetup <- tidyr::crossing(
   noZeroInflate,
   effectSize
 ) %>% 
-  dplyr::mutate(i_setup = 1:n()) %>% 
+  dplyr::mutate(i_setup = 1:dplyr::n()) %>% 
   tidyr::crossing(rep) %>% 
-  dplyr::mutate(i = 1:n())
+  dplyr::mutate(i = 1:dplyr::n())
 ```
 
 ```{r simulate metadata}
 set.seed(1)
 tb_sim <- tb_simSetup %>%
-  dplyr::group_by(1:n()) %>%
+  dplyr::group_by(i) %>%
   dplyr::mutate(df_metadata = list(
     data.frame(batch = sample.int(nBatch, size = nSample, replace = TRUE) %>%
                  as.factor(),
@@ -84,11 +81,11 @@ tb_sim <- tb_simSetup %>%
       list()) %>%
   dplyr::ungroup()
 save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
-N <- nrow(tb_sim)
 ```
 
 ```{r run sparseDOSSA}
 set.seed(1)
+N <- nrow(tb_sim)
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 l_sparseDOSSA <- foreach::`%dopar%`(
