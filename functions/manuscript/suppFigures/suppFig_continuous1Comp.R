@@ -78,8 +78,8 @@ tb_segments_vert <- list(tibble::tibble(x = c(2.05, 2.95), # UC vs. nonIBD
 
 
 p <- metadata %>% ggplot(aes(x = Disease, y = `Score (dysbiosis)`)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_point(position = position_jitter(width = 0.25)) +
+  geom_violin() +
+  # geom_point(position = position_jitter(width = 0.1)) +
   # scale_y_continuous(limits = c(-0.73, 1.8)) +
   geom_segment(data = tb_segments, aes(x = xstart, xend = xend,
                                        y = y, yend = y)) +
@@ -87,9 +87,9 @@ p <- metadata %>% ggplot(aes(x = Disease, y = `Score (dysbiosis)`)) +
                                             y = ystart, yend = yend)) +
   geom_text(data = tb_q, aes(x = x, y = y, label = q_print),
             hjust = 0.5, vjust = 0, size = 5) +
-  scale_y_continuous(breaks = seq(-1, 1, by = 0.5)) +
+  scale_y_continuous(breaks = seq(-1, 0.5, by = 0.5)) +
   ylab("Score (dysbiosis)") +
   theme(axis.title.x = element_blank())
 ggsave(path,
        p, 
-       width = 7.5, height = 6)
+       width = 8, height = 6)
