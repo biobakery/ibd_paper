@@ -50,8 +50,7 @@ for(i in 1:nrow(distances)) {
   i_distance <- distances$distance[i]
   dir_output_tmp <- paste0("data/distance/", i_distance, "/")
   dir.create(dir_output_tmp, recursive = TRUE, showWarnings = TRUE)
-  for(feature_level in c("genera", "species")) {
-    
+  for(feature_level in c("genera")) {
     # calculate distance on the study-adjusted matrix
     physeq_tmp <- get(paste0("physeq_", feature_level, "_adj")) %>% 
       to_relativeAbundance()
@@ -62,27 +61,30 @@ for(i in 1:nrow(distances)) {
     assign(paste0("dist_", feature_level, "_adj"), dist_tmp)
     
     # calculate distance on the original matrix
-    physeq_tmp <- get(paste0("physeq_", feature_level)) %>% 
-      to_relativeAbundance()
-    dist_tmp <- phyloseq::distance(physeq_tmp, 
-                                   method = i_distance,
-                                   binary = distances$binary[i],
-                                   parallel = TRUE)
-    assign(paste0("dist_", feature_level), dist_tmp)
+    if(i_distance == "bray") {
+      physeq_tmp <- get(paste0("physeq_", feature_level)) %>% 
+        to_relativeAbundance()
+      dist_tmp <- phyloseq::distance(physeq_tmp, 
+                                     method = i_distance,
+                                     binary = distances$binary[i],
+                                     parallel = TRUE)
+      assign(paste0("dist_", feature_level), dist_tmp)
+      
+      # calculate distance on the batch-adjusted matrix
+      physeq_tmp <- get(paste0("physeq_", feature_level, "_adjBatch")) %>% 
+        to_relativeAbundance()
+      dist_tmp <- phyloseq::distance(physeq_tmp, 
+                                     method = i_distance,
+                                     binary = distances$binary[i],
+                                     parallel=TRUE)
+      assign(paste0("dist_", feature_level, "_adjBatch"), dist_tmp)
+      
+      save(list = paste0("dist_", feature_level),
+           file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
+      save(list = paste0("dist_", feature_level, "_adjBatch"),
+           file = paste0(dir_output_tmp, "dist_", feature_level, "_adjBatch.RData"))
+    }
     
-    # calculate distance on the batch-adjusted matrix
-    physeq_tmp <- get(paste0("physeq_", feature_level, "_adjBatch")) %>% 
-      to_relativeAbundance()
-    dist_tmp <- phyloseq::distance(physeq_tmp, 
-                                   method = i_distance,
-                                   binary = distances$binary[i],
-                                   parallel=TRUE)
-    assign(paste0("dist_", feature_level, "_adjBatch"), dist_tmp)
-    
-    save(list = paste0("dist_", feature_level),
-         file = paste0(dir_output_tmp, "dist_", feature_level, ".RData"))
-    save(list = paste0("dist_", feature_level, "_adjBatch"),
-         file = paste0(dir_output_tmp, "dist_", feature_level, "_adjBatch.RData"))
     save(list = paste0("dist_", feature_level, "_adj"),
          file = paste0(dir_output_tmp, "dist_", feature_level, "_adj.RData"))
   }
