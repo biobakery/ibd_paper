@@ -1,0 +1,40 @@
+---
+title: "Format and save metadata for quantile normalization"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+  df_print: paged
+---
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
+setup("./")
+dir_output <- "results/simulations/lm.meta/"
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
+```
+
+```{r load data}
+ncores <- 20
+load(paste0(dir_output, "tb_sim.RData"))
+```
+
+```{r format and write metadata}
+dir_outputChunk <- paste0(dir_output, "metadata/")
+dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+N <- nrow(tb_sim)
+results <- foreach(i = 1:N) %dopar% {
+  metadata_write <- tb_sim$df_metadata[[i]] %>%
+    dplyr::mutate(`#SampleID` = rownames(.),
+                  CaseControl = ifelse(exposure == 1,
+                                 "case",
+                                 "control"),
+                  batch = paste0("batch", as.numeric(batch) - 1)) %>%
+    dplyr::select(`#SampleID`, CaseControl, batch) %>% 
+    readr::write_tsv(path = paste0(dir_outputChunk, i, ".tsv"))
+  return(NULL)
+}
+```
