@@ -1,6 +1,7 @@
 load("data/physeq/genera_adj.RData")
 tb_loading <- readr::read_tsv("results/6-unsupervised_continuous/genera/cor_cutoff_0.65/avg_loading.tsv")
-path <- "supp_materials/suppFigures/"
+tb_scores <- readr::read_tsv("results/6-unsupervised_continuous/genera/scores.tsv")
+path <- "supp_materials/suppFigures/suppFig_continuous2.pdf"
 
 tb_loading <- smar::tax_table2(physeq_genera_adj) %>% 
   as.data.frame(check.names = FALSE, stringAsFactors = FALSE) %>% 
@@ -30,14 +31,8 @@ p_loading <- tb_loading %>%
         legend.background = element_blank())
 
 load("data/ordinate/bray/ord_genera_adj.RData")
-mat_scores <- physeq_genera_adj %>% 
-  to_relativeAbundance() %>% 
-  smar::otu_table2() %>% 
-  sqrt() %>% asin() %>% t() %>% 
-  multiply_by_matrix(as.matrix(tb_loading[, c("Cluster_1", "Cluster_2")])) %>% 
-  set_colnames(c("Score (dysbiosis)", "Score (phyla tradeoff)"))  
 metadata <- smar::sample_data2(physeq_genera_adj) %>% 
-  cbind(mat_scores) %>% 
+  dplyr::left_join(tb_scores, by = c("sample_accession_16S" = "sample")) %>% 
   cbind(ord_genera_adj$vectors) %>% 
   dplyr::mutate(Disease = dplyr::case_when(
     disease == "CD" ~ "CD",
@@ -56,7 +51,8 @@ p_scores <- metadata %>%
   ggplot(aes(x = Axis.1, y = Axis.2, color = `Score (phyla tradeoff)`)) +
   geom_point() +
   facet_grid(.~Disease) +
-  scale_color_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, name = "Score\n(phyla tradeoff)") +
+  scale_color_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, 
+                        breaks = c(-0.5, 0, 0.5), name = "Score\n(phyla tradeoff)") +
   coord_fixed() +
   xlab(paste0("Axis 1 (", round(ord_genera_adj$values$Relative_eig[1] * 100, digits = 2), "%)")) +
   ylab(paste0("Axis 2 (", round(ord_genera_adj$values$Relative_eig[2] * 100, digits = 2), "%)")) +
@@ -70,5 +66,5 @@ p <- cowplot::plot_grid(p_loading, p_scores, nrow = 1, rel_widths = c(1, 2.2),
                         labels = c("a", "b"),
                         label_fontface = "plain",
                         label_size = 30)
-ggsave(paste0(path, "suppFig_contnuous2.pdf"), p, 
+ggsave(path, p, 
        width = 22, height = 5)

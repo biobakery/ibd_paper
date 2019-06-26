@@ -255,13 +255,25 @@ tb.validation.results <- c(l_tb.validation, list(tb.validation.random)) %>%
 
 ```{r visualize scores}
 tb_loading <- readr::read_tsv("results/6-unsupervised_continuous/genera/cor_cutoff_0.65/avg_loading.tsv")
-colnames(tb_loading)[2:3] <- paste0("Cluster_", 1:2)
 
-mat_scores <- physeq_genera_adj %>% 
+mat_otu_transformed <- physeq_genera_adj %>% 
   to_relativeAbundance() %>% 
   smar::otu_table2() %>% 
-  sqrt() %>% asin() %>% t() %>% 
-  multiply_by_matrix(as.matrix(tb_loading[, c("Cluster_1", "Cluster_2")]))
+  sqrt() %>% asin() %>% t()
+# sanity check
+# all(rownames(mat_otu_transformed) == rownames(metadata))
+mat_scores <- studies %>% 
+  purrr::map(function(study) {
+    mat_otu_transformed[metadata$dataset_name == study, ] %>% 
+      apply(2, function(x) x - mean(x)) %>% 
+      multiply_by_matrix(as.matrix(tb_loading[, c("Cluster_1", "Cluster_2")])) %>% 
+      as.data.frame()
+  }) %>% purrr::reduce(rbind)
+mat_scores <- mat_scores[phyloseq::sample_names(physeq_genera_adj), ]
+readr::write_tsv(mat_scores %>% 
+                   set_colnames(c("Score (dysbiosis)", "Score (phyla tradeoff)")) %>% 
+                   tibble::rownames_to_column("sample"), 
+                 paste0(dir_outputChunk, "scores.tsv"))
 
 tb_loading <- smar::tax_table2(physeq_genera_adj) %>% 
   as.data.frame %>% 

@@ -1,15 +1,11 @@
 load("data/physeq/genera_adj.RData")
 tb_loading <- readr::read_tsv("results/6-unsupervised_continuous/genera/cor_cutoff_0.65/avg_loading.tsv")
-path <- "supp_materials/suppFigures/"
+tb_scores <- readr::read_tsv("results/6-unsupervised_continuous/genera/scores.tsv")
+path <- "supp_materials/suppFigures/suppFig_continuous1Comp.pdf"
 
-mat_scores <- physeq_genera_adj %>% 
-  to_relativeAbundance() %>% 
-  smar::otu_table2() %>% 
-  sqrt() %>% asin() %>% t() %>% 
-  multiply_by_matrix(as.matrix(tb_loading[, c("Cluster_1", "Cluster_2")])) %>% 
-  set_colnames(c("Score (dysbiosis)", "Score (phyla tradeoff)"))
+
 metadata <- smar::sample_data2(physeq_genera_adj) %>% 
-  cbind(mat_scores) %>% 
+  dplyr::left_join(tb_scores, by = c("sample_accession_16S" = "sample")) %>% 
   dplyr::mutate(Disease = dplyr::case_when(
     disease == "CD" ~ "CD",
     disease == "UC" ~ "UC",
@@ -35,42 +31,48 @@ tb_tests <- (1:3) %>%
 
 # q value annotations
 tb_q <- tb_tests %>% 
-  dplyr::filter(q < 0.05) %>% 
-  dplyr::mutate(x = c(1.5, 2, 2.5, 2.5, 3),
-                y = c(1.02, 1.42, 1.62, 1.02, 1.22),
+  # dplyr::filter(q < 0.05) %>% 
+  dplyr::mutate(x = c(1.5, 2, 2.5, 2.5, 3, 3.5),
+                y = c(0.72, 1.12, 1.32, 0.72, 0.92, 0.72),
                 q_print = format(q, digits = 2, scientific = TRUE))
 tb_segments <- list(tibble::tibble(xstart = 2.05, # UC vs. nonIBD
                                    xend = 2.95,
-                                   y = 1),
+                                   y = 0.7),
                     tibble::tibble(xstart = 2.05, # UC vs. HC
                                    xend = 3.95,
-                                   y = 1.2),
+                                   y = 0.9),
                     tibble::tibble(xstart = 1.05, # CD vs. UC
                                    xend = 1.95,
-                                   y = 1),
+                                   y = 0.7),
                     tibble::tibble(xstart = 1.05, # CD vs. nonIBD
                                    xend = 2.95,
-                                   y = 1.4),
-                    tibble::tibble(xstart = 1.05, # CD vs. control
+                                   y = 1.1),
+                    tibble::tibble(xstart = 1.05, # CD vs. HC
                                    xend = 3.95,
-                                   y = 1.6)
+                                   y = 1.3),
+                    tibble::tibble(xstart = 3.05, # nonIBD vs. HC
+                                   xend = 3.95,
+                                   y = 0.7)
                     ) %>% 
   purrr::reduce(rbind)
 tb_segments_vert <- list(tibble::tibble(x = c(2.05, 2.95), # UC vs. nonIBD
-                                        ystart = rep(1, 2),
-                                        yend = rep(0.95, 2)),
+                                        ystart = rep(0.7, 2),
+                                        yend = rep(0.65, 2)),
                          tibble::tibble(x = c(2.05, 3.95), # UC vs. HC
-                                        ystart = rep(1.2, 2),
-                                        yend = rep(1.15, 2)),
+                                        ystart = rep(0.9, 2),
+                                        yend = rep(0.85, 2)),
                          tibble::tibble(x = c(1.05, 1.95), # CD vs. UC
-                                        ystart = rep(1, 2),
-                                        yend = rep(0.95, 2)),
+                                        ystart = rep(0.7, 2),
+                                        yend = rep(0.65, 2)),
                          tibble::tibble(x = c(1.05, 2.95), # CD vs. nonIBD
-                                        ystart = rep(1.4, 2),
-                                        yend = rep(1.35, 2)),
-                         tibble::tibble(x = c(1.05, 3.95), # CD vs. control
-                                        ystart = rep(1.6, 2),
-                                        yend = rep(1.55, 2))
+                                        ystart = rep(1.1, 2),
+                                        yend = rep(1.05, 2)),
+                         tibble::tibble(x = c(1.05, 3.95), # CD vs. HC
+                                        ystart = rep(1.3, 2),
+                                        yend = rep(1.25, 2)),
+                         tibble::tibble(x = c(3.05, 3.95), # nonIBD vs. HC
+                                        ystart = rep(0.7, 2),
+                                        yend = rep(0.65, 2))
 ) %>% 
   purrr::reduce(rbind)
 
@@ -88,6 +90,6 @@ p <- metadata %>% ggplot(aes(x = Disease, y = `Score (dysbiosis)`)) +
   scale_y_continuous(breaks = seq(-1, 1, by = 0.5)) +
   ylab("Score (dysbiosis)") +
   theme(axis.title.x = element_blank())
-ggsave(paste0(path, "suppFig_continuous1Comp.pdf"),
+ggsave(path,
        p, 
        width = 7.5, height = 6)
