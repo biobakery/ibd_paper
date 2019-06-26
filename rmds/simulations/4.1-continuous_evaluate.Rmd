@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/continuous/"
 ```
@@ -27,7 +24,7 @@ load(paste0(dir_output, "tb_sim.RData"))
 
 ```{r evaluate continuous score before correction}
 N <- nrow(tb_sim)
-cutoff <- seq(0.5, 0.1, by = -0.1)
+cutoff <- seq(0.9, 0.1, by = -0.1)
 start.time <- Sys.time() 
 doParallel::registerDoParallel(ncores)
 results <- foreach::`%dopar%`(
@@ -47,16 +44,24 @@ results <- foreach::`%dopar%`(
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     R2_score <- vegan::adonis(D ~ score,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["score", "R2"]
+    
+    
+    # naive PCA
+    fit.pca <- prcomp(mat_otu %>% 
+                        apply(2, MMUPHin:::tss) %>% 
+                        sqrt() %>% asin() %>% 
+                        t())
+    cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
     
     for(cor.cutoff in cutoff) {
       fit.continuous <- MMUPHin::continuous.discover(feature.abd = mat_otu,
@@ -65,6 +70,7 @@ results <- foreach::`%dopar%`(
                                                      normalization = "TSS",
                                                      transform = "AST",
                                                      cor.cutoff = cor.cutoff,
+                                                     cluster_function = igraph::cluster_fast_greedy,
                                                      plot.clustered.network = FALSE,
                                                      diagnostics = FALSE,
                                                      verbose = FALSE)
@@ -72,12 +78,20 @@ results <- foreach::`%dopar%`(
       if(length(fit.continuous$membership[[1]]) >= i_simSetup$nBatch) break
     }
     if(!is.null(fit.continuous)) {
-      correlation <- mat_otu %>% 
-        apply(2, MMUPHin:::tss) %>% sqrt() %>% asin %>% 
-        t() %>% `%*%`(fit.continuous$consensus.loading[, 1]) %>% 
-        cor(i_simSetup$df_metadata[[1]]$score, method = "spearman")
+      mat_otu_transformed <- levels(df_metadata$batch) %>% 
+        purrr::map(function(lvl.batch) {
+          mat_otu[, df_metadata$batch == lvl.batch] %>% 
+          apply(2, MMUPHin:::tss) %>% 
+            sqrt() %>% asin() %>% 
+            t() %>% apply(2, function(x) x - mean(x))
+        }) %>% purrr::reduce(rbind)
+      mat_otu_transformed <- mat_otu_transformed[colnames(mat_otu), ]
+      correlation <- mat_otu_transformed %>% 
+        `%*%`(fit.continuous$consensus.loading[, 1]) %>% 
+        cor(df_metadata$score, method = "spearman")
       return(list(R2 = c("batch" = R2_batch,
                          "score" = R2_score),
+                  cor.pca = cor.pca,
                   fit.continuous = list(cor.cutoff = cor.cutoff,
                                         fit.continuous = fit.continuous,
                                         correlation = correlation[1, 1]))
@@ -85,6 +99,7 @@ results <- foreach::`%dopar%`(
     }
     return(list(R2 = c("batch" = R2_batch,
                        "score" = R2_score),
+                cor.pca = cor.pca,
                 fit.continuous = NULL))
   }
 )
@@ -115,18 +130,25 @@ results_correct <-  foreach::`%dopar%`(
                             data = df_metadata,
                             diagnostics = FALSE,
                             verbose = FALSE)
+    
+    # naive PCA
+    fit.pca <- prcomp(mat_otu %>% 
+                        apply(2, MMUPHin:::tss) %>% 
+                        sqrt() %>% asin() %>% 
+                        t())
+    cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
 
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     R2_score <- vegan::adonis(D ~ score,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["score", "R2"]
 
     for(cor.cutoff in cutoff) {
@@ -136,6 +158,7 @@ results_correct <-  foreach::`%dopar%`(
                                                      normalization = "TSS",
                                                      transform = "AST",
                                                      cor.cutoff = cor.cutoff,
+                                                     cluster_function = igraph::cluster_fast_greedy,
                                                      plot.clustered.network = FALSE,
                                                      diagnostics = FALSE,
                                                      verbose = FALSE)
@@ -143,12 +166,20 @@ results_correct <-  foreach::`%dopar%`(
       if(length(fit.continuous$membership[[1]]) >= i_simSetup$nBatch) break
     }
     if(!is.null(fit.continuous)) {
-      correlation <- mat_otu %>%
-        apply(2, MMUPHin:::tss) %>% sqrt() %>% asin %>%
-        t() %>% `%*%`(fit.continuous$consensus.loading[, 1]) %>%
-        cor(i_simSetup$df_metadata[[1]]$score, method = "spearman")
+     mat_otu_transformed <- levels(df_metadata$batch) %>% 
+        purrr::map(function(lvl.batch) {
+          mat_otu[, df_metadata$batch == lvl.batch] %>% 
+          apply(2, MMUPHin:::tss) %>% 
+            sqrt() %>% asin() %>% 
+            t() %>% apply(2, function(x) x - mean(x))
+        }) %>% purrr::reduce(rbind)
+      mat_otu_transformed <- mat_otu_transformed[colnames(mat_otu), ]
+      correlation <- mat_otu_transformed %>% 
+        `%*%`(fit.continuous$consensus.loading[, 1]) %>% 
+        cor(df_metadata$score, method = "spearman")
       return(list(R2 = c("batch" = R2_batch,
                          "score" = R2_score),
+                  cor.pca = cor.pca,
                   fit.continuous = list(cor.cutoff = cor.cutoff,
                                         fit.continuous = fit.continuous,
                                         correlation = correlation[1, 1]))
@@ -156,6 +187,7 @@ results_correct <-  foreach::`%dopar%`(
     }
     return(list(R2 = c("batch" = R2_batch,
                        "score" = R2_score),
+                cor.pca = cor.pca,
                 fit.continuous = NULL))
   }
 )
