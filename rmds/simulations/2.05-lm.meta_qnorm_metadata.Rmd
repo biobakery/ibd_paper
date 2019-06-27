@@ -25,8 +25,12 @@ load(paste0(dir_output, "tb_sim.RData"))
 ```{r format and write metadata}
 dir_outputChunk <- paste0(dir_output, "metadata/")
 dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
+ncores <- 20
 N <- nrow(tb_sim)
-results <- foreach(i = 1:N) %dopar% {
+doParallel::registerDoParallel(ncores)
+foreach::`%dopar%`(
+  foreach::foreach(i = 1:N),
+  {
   metadata_write <- tb_sim$df_metadata[[i]] %>%
     dplyr::mutate(`#SampleID` = rownames(.),
                   CaseControl = ifelse(exposure == 1,
@@ -36,5 +40,7 @@ results <- foreach(i = 1:N) %dopar% {
     dplyr::select(`#SampleID`, CaseControl, batch) %>% 
     readr::write_tsv(path = paste0(dir_outputChunk, i, ".tsv"))
   return(NULL)
-}
+  }
+)
+doParallel::stopImplicitCluster()
 ```
