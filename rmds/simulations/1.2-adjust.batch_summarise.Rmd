@@ -49,7 +49,7 @@ tb_sim <- tb_sim %>%
 # aggregate results into df format
 tb_R2 <- list(results, results_ComBat, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_simulation_adjust.batch),
+    c("Original", "ComBat corrected", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
         ~ tibble::tibble(Variable = names(.x$R2),
@@ -75,10 +75,9 @@ tb_R2 <- tb_R2 %>%
 ```
 
 ```{r plot}
-colors <- gg_color_hue(n=3)
+colors <- smar::gg_color_hue(n=3)
 colors_simulation_adjust.batch <- c("Original" = "black",
                                     "ComBat corrected" = colors[3],
-                                    # "Quantile corrected" = colors[2],
                                     "MMUPHin corrected" = colors[1])
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i")
 plist <- (1:nlevels(tb_plot$Variable)) %>% 
