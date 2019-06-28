@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/lm.meta/"
 ```
@@ -44,15 +41,15 @@ results <-  foreach::`%dopar%`(
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_exposure <- vegan::adonis(D ~ exposure,
-                                 data = sample_data2(phylo),
+                                 data = smar::sample_data2(phylo),
                                  permutations = 2)$aov.tab["exposure", "R2"]
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     
     fit_lm.meta <- MMUPHin::lm.meta(
@@ -110,15 +107,15 @@ results_correct <-  foreach::`%dopar%`(
     
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      sample_data(df_metadata)) %>%
-      transform_sample_counts(MMUPHin:::tss) %>%
-      prune_taxaSamples()
+      phyloseq::sample_data(df_metadata)) %>%
+      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+      smar::prune_taxaSamples()
     D <- phyloseq::distance(phylo, method = "bray")
     R2_exposure <- vegan::adonis(D ~ exposure,
-                                 data = sample_data2(phylo),
+                                 data = smar::sample_data2(phylo),
                                  permutations = 2)$aov.tab["exposure", "R2"]
     R2_batch <- vegan::adonis(D ~ batch,
-                              data = sample_data2(phylo),
+                              data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
     
     fit_lm.meta <- MMUPHin::lm.meta(
@@ -147,5 +144,41 @@ results_correct <-  foreach::`%dopar%`(
 ) 
 doParallel::stopImplicitCluster()
 save(results_correct, file = paste0(dir_output, "evaluate_after.RData"))
+print(Sys.time() - start.time)
+```
+
+```{r use percentile normalization}
+start.time <- Sys.time()
+doParallel::registerDoParallel(ncores)
+results_qnorm <-  foreach::`%dopar%`(
+  foreach::foreach(i = 1:N),
+  {
+    cat(i, "\n", file = paste0(dir_output, "evaluate_qnorm_progress.txt"), append = TRUE)
+    
+    mat_otu <- read.table(paste0(dir_output, "qnorm/qnormed/", i, ".tsv"),
+                          skip = 1,
+                          sep = "\t",
+                          comment.char = "",
+                          header = TRUE,
+                          row.names = 1) %>%
+      as.matrix()
+    i_simSetup <- tb_sim[i, ]
+    df_metadata <- i_simSetup$df_metadata[[1]]
+    mat_otu <- mat_otu[, rownames(df_metadata)]
+    
+    tb_results <- (1:nrow(mat_otu)) %>% 
+      purrr::map_dfr(function(i_feature) {
+        i_data = mat_otu[i_feature, ]
+        fit.wilcox <- wilcox.test(x = i_data[df_metadata$exposure == 0],
+                                  y = i_data[df_metadata$exposure == 1])
+        tibble::tibble(feature = rownames(mat_otu)[i_feature],
+                       statistic = fit.wilcox$statistic,
+                       pval = fit.wilcox$p.value)
+      })
+    
+    return(tb_results)
+  }) 
+doParallel::stopImplicitCluster()
+save(results_qnorm, file = paste0(dir_output, "evaluate_qnorm.RData"))
 print(Sys.time() - start.time)
 ```
