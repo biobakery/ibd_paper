@@ -75,7 +75,7 @@ results <- foreach::`%dopar%`(
                                                      diagnostics = FALSE,
                                                      verbose = FALSE)
       if(is.null(fit.continuous)) next
-      if(length(fit.continuous$membership[[1]]) >= i_simSetup$nBatch) break
+      if(median(fit.continuous$mat.vali[, 1]) > cor.cutoff) break
     }
     if(!is.null(fit.continuous)) {
       mat_otu_transformed <- levels(df_metadata$batch) %>% 
@@ -163,7 +163,7 @@ results_correct <-  foreach::`%dopar%`(
                                                      diagnostics = FALSE,
                                                      verbose = FALSE)
       if(is.null(fit.continuous)) next
-      if(length(fit.continuous$membership[[1]]) >= i_simSetup$nBatch) break
+      if(median(fit.continuous$mat.vali[, 1]) > cor.cutoff) break
     }
     if(!is.null(fit.continuous)) {
      mat_otu_transformed <- levels(df_metadata$batch) %>% 

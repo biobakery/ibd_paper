@@ -38,7 +38,7 @@ effectSize <- tibble::tibble(effectSize =
 # replicates
 rep <- 1:20
 # metadata simulation
-fDummyData <- FALSE
+fDummyData <- TRUE
 fDummyDirection <- TRUE
 # additional setup
 noZeroInflate <- FALSE
