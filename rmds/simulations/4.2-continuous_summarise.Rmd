@@ -10,11 +10,8 @@ df_print: paged
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in c(list.files("functions/", full.names = TRUE),
-                    list.files("functions/simulations/", full.names = TRUE))) {
-  source(i.function)
-}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/continuous/"
 ```
@@ -28,30 +25,30 @@ load(paste0(dir_output, "evaluate_after.RData"))
 # effect sizes
 tb_sim <- tb_sim %>% 
   dplyr::mutate(effect_score = effectSize %>% 
-                  purrr::map_dbl("score") %>% 
-                  factor(levels = c(5, 10)),
+                  purrr::map_dbl("score"),
                 effect_batch = effectSize %>%
                   purrr::map_dbl("batch") %>% 
-                  factor(levels = 0:10))
+                  factor(levels = 0:10) %>% 
+                  forcats::as_factor() %>% forcats::fct_inseq())
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nSample, nBatch) %>% 
   dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
                                         "nBatch = ", nBatch) %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 # nMicrobe and percMicrobe spiked
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
   dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
                                             spikeMicrobes*100, "% spiked") %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 ```
 ```{r summarise results}
 # R2 sanity check
 # aggregate results into df format
 tb_R2 <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_base),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
         ~ tibble::tibble(Variable = names(.x$R2),
@@ -64,27 +61,30 @@ tb_R2 <- list(results, results_correct) %>%
 tb_R2 <- tb_R2 %>% 
   dplyr::mutate(Variable = factor(Variable, 
                                   levels = c("batch", "score")),
-                Data = factor(Data, levels = names(colors_base)))
+                Data = factor(Data, levels = c("Original", "MMUPHin corrected")))
 # continuous results
 # aggregate results into df format
-tb_results <- list(results, results_correct) %>% 
+tb_summary <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_simulation_continuous),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
-        ~ tibble::tibble(results = list(.x$fit.continuous),
-                         i = .y)
+        ~ tibble::tibble(Cor = c(.x$cor.pca, 
+                                 .x$fit.continuous$correlation),
+                         i = .y,
+                         analysis = c("naive analyzed", 
+                                      "MMUPHin analyzed"))
       ) %>% 
       dplyr::mutate(Data = .y)
-  ) 
+  ) %>% 
+  dplyr::mutate(`Data and model` = paste0(Data, ", ", analysis) %>% 
+                  factor(levels = c("Original, naive analyzed",
+                                    "Original, MMUPHin analyzed",
+                                    "MMUPHin corrected, naive analyzed",
+                                    "MMUPHin corrected, MMUPHin analyzed")))
 # sanity check
 # all simulation runs managed to find continuous structure
-mean(tb_results$results %>% purrr::map_lgl(~is.null(.x)))
-# format results
-tb_summary <- tb_results %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(colors_simulation_continuous)),
-                Cor = results %>% 
-                  purrr::map_dbl("correlation"))
+# mean(c(results, results_correct) %>% purrr::map_lgl(~is.null(.x)))
 ```
 
 
@@ -92,73 +92,63 @@ tb_summary <- tb_results %>%
 # R2 sanity check
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
-for(i.effect in levels(tb_plot$effect_score)) {
-  plist <- (1:nlevels(tb_plot$Variable)) %>% 
-    purrr::map(function(i) {
-      i.Variable <- levels(tb_plot$Variable)[i]
-      p <- tb_plot %>% 
-        dplyr::filter(Variable == i.Variable,
-                      effect_score == i.effect) %>% 
-        ggplot(aes(x = effect_batch, y = R2, color = Data)) +
-        geom_boxplot() +
-        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_adjust.batch) +
-        theme(legend.position = c(0, 1),
-              legend.justification = c(0, 1),
-              legend.background = element_blank(),
-              strip.text = element_text(size = 8),
-              legend.text = element_text(size = 8)) +
-        xlab("Batch effect") +
-        ggtitle(i.Variable)
-      if(i >= 2)
-        p <- p + theme(legend.position = "none")
-      return(p)
-    })
-  cowplot::plot_grid(plotlist = plist,
-                     nrow = 1) %>% 
-    ggsave(paste0(dir_output, 
-                  "R2_effecScore_", 
-                  as.numeric(i.effect), 
-                  ".pdf"),
-           .,
-           width = 20, height = 10)
-}
+colors <- smar::gg_color_hue(n=3)
+colors_simulation_continuousR2 <- c("Original" = "black",
+                                "MMUPHin corrected" = colors[1])
+plist <- (1:nlevels(tb_plot$Variable)) %>% 
+  purrr::map(function(i) {
+    i.Variable <- levels(tb_plot$Variable)[i]
+    p <- tb_plot %>% 
+      dplyr::filter(Variable == i.Variable) %>% 
+      ggplot(aes(x = effect_batch, y = R2, color = Data)) +
+      geom_boxplot() +
+      facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+      scale_color_manual(values = colors_simulation_continuousR2) +
+      theme(legend.position = c(0, 1),
+            legend.justification = c(0, 1),
+            legend.background = element_blank(),
+            strip.text = element_text(size = 8),
+            legend.text = element_text(size = 8)) +
+      xlab("Batch effect") +
+      ggtitle(i.Variable)
+    if(i >= 2)
+      p <- p + theme(legend.position = "none")
+    return(p)
+  })
+cowplot::plot_grid(plotlist = plist,
+                   nrow = 1) %>% 
+  ggsave(paste0(dir_output, 
+                "R2.pdf"),
+         .,
+         width = 20, height = 5)
 
 # summary plot
 tb_plot <- tb_summary %>% 
   dplyr::left_join(tb_sim, 
                    by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 &
-                  Data == "MMUPHin corrected, MMUPHin analyzed"))
-plist <- (1:nlevels(tb_sim$effect_score)) %>% 
-    purrr::map(function(i) {
-      i.effect <- levels(tb_sim$effect_score)[i]
-      p <- tb_plot %>% 
-        dplyr::filter(effect_score == i.effect) %>% 
-        ggplot(aes(x = effect_batch, y = abs(Cor), color = Data)) +
-        geom_boxplot() +
-        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_continuous) +
-        theme(legend.position = c(1, 1),
-              legend.justification = c(1, 1),
-              legend.background = element_blank(),
-              legend.title = element_blank(),
-              strip.text = element_text(size = 8),
-              legend.text = element_text(size = 8)) +
-        xlab("Batch effect") +
-        ylab("Correlation") +
-        ggtitle(paste0("Effect of Score  = ", 
-                       i.effect %>%  
-                         as.numeric))
-      if(i >= 2)
-        p <- p + theme(legend.position = "none")
-      return(p)
-    })
-cowplot::plot_grid(plotlist = plist,
-                     nrow = 1) %>% 
-    ggsave(paste0(dir_output, "summary.pdf"),
-           .,
-           width = 20, height = 10)
+                    `Data and model` != "Original, naive analyzed"))
+colors_simulation_continuous <- c("Original, naive analyzed" = "black",
+                                  "Original, MMUPHin analyzed" = "brown",
+                                  "MMUPHin corrected, naive analyzed" = "purple",
+                                  "MMUPHin corrected, MMUPHin analyzed" = colors[1])
+p <- tb_plot %>% 
+  ggplot(aes(x = effect_batch, y = abs(Cor), color = `Data and model`)) +
+  geom_boxplot() +
+  facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+  scale_color_manual(values = colors_simulation_continuous,
+                     name = "Data and model") +
+  theme(legend.position = c(1, 1),
+        legend.justification = c(1, 1),
+        legend.background = element_blank(),
+        legend.title = element_text(size = 8),
+        strip.text = element_text(size = 8),
+        legend.text = element_text(size = 8)) +
+  xlab("Batch effect") +
+  ylab("Correlation")
+ggsave(paste0(dir_output, "summary.pdf"),
+       p,
+       width = 15, height = 4)
 ```
 
 ```{r find example case}
