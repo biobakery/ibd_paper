@@ -23,7 +23,6 @@ load(paste0(dir_output, "tb_sim.RData"))
 
 ```{r run meta-analysis before batch adjustment}
 N <- nrow(tb_sim)
-N <- 20
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results <-  foreach::`%dopar%`(
