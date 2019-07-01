@@ -50,7 +50,7 @@ tb_sim <- tb_sim %>%
 # aggregate results into df format
 tb_R2 <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_base),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
         ~ tibble::tibble(Variable = names(.x$R2),
@@ -63,12 +63,12 @@ tb_R2 <- list(results, results_correct) %>%
 tb_R2 <- tb_R2 %>% 
   dplyr::mutate(Variable = factor(Variable, 
                                   levels = c("batch", "cluster")),
-                Data = factor(Data, levels = names(colors_base)))
+                Data = factor(Data, levels = c("Original", "MMUPHin corrected")))
 # discrete results
 # aggregate results into df format
 tb_results <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_base),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
         ~ tibble::tibble(results = list(.x$pred.str),
@@ -78,7 +78,7 @@ tb_results <- list(results, results_correct) %>%
   ) 
 # format variables
 tb_results <- tb_results %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(colors_base)))
+  dplyr::mutate(Data = factor(Data, levels = c("Original", "MMUPHin corrected")))
 # sanity check
 # all simulation runs were successful
 # mean(tb_results$results %>% purrr::map_lgl(~is.null(.x)))
@@ -103,6 +103,10 @@ tb_summary <- tb_results %>%
 # R2 sanity check
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
+colors <- smar::gg_color_hue(n=3)
+colors_simulation_discrete <- c("Original" = "black",
+                                "MMUPHin corrected" = colors[1])
+
 for(i.cluster in levels(tb_plot$nCluster)) {
   plist <- (1:nlevels(tb_plot$Variable)) %>% 
     purrr::map(function(i) {
@@ -113,7 +117,7 @@ for(i.cluster in levels(tb_plot$nCluster)) {
         ggplot(aes(x = effect_batch, y = R2, color = Data)) +
         geom_boxplot() +
         facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_adjust.batch) +
+        scale_color_manual(values = colors_simulation_discrete) +
         theme(legend.position = c(0, 1),
               legend.justification = c(0, 1),
               legend.background = element_blank(),
@@ -148,7 +152,7 @@ plist <- (1:nlevels(tb_plot$nCluster)) %>%
       ggplot(aes(x = effect_batch, y = mean_success, color = Data)) +
       geom_point(position = position_dodge(width = 0.5)) +
       facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-      scale_color_manual(values = colors_simulation_adjust.batch) +
+      scale_color_manual(values = colors_simulation_discrete) +
       theme(legend.position = c(1, 1),
             legend.justification = c(1, 1),
             legend.background = element_blank(),

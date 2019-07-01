@@ -1,6 +1,6 @@
 create_metadataMatrix <- function(df_metadata,
                                   metadata_type,
-                                  fDummyData = FALSE,
+                                  fDummyData = TRUE,
                                   fDummyDirection = TRUE,
                                   scale = FALSE) {
   if(any(colnames(df_metadata) != names(metadata_type)))
@@ -8,14 +8,8 @@ create_metadataMatrix <- function(df_metadata,
   if(any(sapply(df_metadata, class) != metadata_type))
     stop("Variable classes in df_metadata and metadata_type do not agree!")
   l_mat_metadata <- lapply(names(metadata_type), function(variable) {
-    if(metadata_type[variable] != "factor") {
+    if(metadata_type[variable] != "factor" | !fDummyData) {
       mat_tmp <- rbind(df_metadata[, variable])
-      rownames(mat_tmp) <- variable
-      return(mat_tmp)
-    } else if (metadata_type[variable] == "factor" & !fDummyData) {
-      nlvls <- nlevels(df_metadata[, variable])
-      mean_batch <- runif(n = nlvls, min = -1, max = 1)
-      mat_tmp <- rbind(mean_batch[as.numeric(df_metadata[, variable])])
       rownames(mat_tmp) <- variable
       return(mat_tmp)
     } else {
