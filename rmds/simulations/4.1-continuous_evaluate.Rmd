@@ -56,12 +56,18 @@ results <- foreach::`%dopar%`(
                               permutations = 2)$aov.tab["score", "R2"]
     
     
-    # naive PCA
-    fit.pca <- prcomp(mat_otu %>% 
-                        apply(2, MMUPHin:::tss) %>% 
-                        sqrt() %>% asin() %>% 
-                        t())
-    cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
+     # naive PCA
+    fit.pca <- levels(df_metadata$batch) %>% 
+      purrr::map(function(lvl.batch) {
+        mat_otu[, df_metadata$batch == lvl.batch] %>% 
+          apply(2, MMUPHin:::tss) %>% 
+          sqrt() %>% asin() %>% 
+          t() %>% 
+          prcomp() %>% 
+          extract2("x")
+      }) %>% purrr::reduce(rbind)
+    fit.pca <- fit.pca[rownames(df_metadata), ]
+    cor.pca <- cor(fit.pca[, 1], df_metadata$score, method = "spearman")
     
     for(cor.cutoff in cutoff) {
       fit.continuous <- MMUPHin::continuous.discover(feature.abd = mat_otu,
@@ -132,11 +138,17 @@ results_correct <-  foreach::`%dopar%`(
                             verbose = FALSE)
     
     # naive PCA
-    fit.pca <- prcomp(mat_otu %>% 
-                        apply(2, MMUPHin:::tss) %>% 
-                        sqrt() %>% asin() %>% 
-                        t())
-    cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
+    fit.pca <- levels(df_metadata$batch) %>% 
+      purrr::map(function(lvl.batch) {
+        mat_otu[, df_metadata$batch == lvl.batch] %>% 
+          apply(2, MMUPHin:::tss) %>% 
+          sqrt() %>% asin() %>% 
+          t() %>% 
+          prcomp() %>% 
+          extract2("x")
+      }) %>% purrr::reduce(rbind)
+    fit.pca <- fit.pca[rownames(df_metadata), ]
+    cor.pca <- cor(fit.pca[, 1], df_metadata$score, method = "spearman")
 
     phylo <- phyloseq::phyloseq(
       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
