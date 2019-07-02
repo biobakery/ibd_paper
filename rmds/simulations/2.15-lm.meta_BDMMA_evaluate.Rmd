@@ -18,7 +18,7 @@ dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 ```
 
 ```{r load data}
-ncores <- 20
+ncores <- 5
 load(paste0(dir_output, "tb_sim.RData"))
 ```
 ```{r use BDMMA}
@@ -30,9 +30,10 @@ tb_sim_subset <- tb_sim %>%
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_BDMMA <-  foreach::`%dopar%`(
-  foreach::foreach(i = tb_sim_subset$i),
+  foreach::foreach(i = tb_sim_subset$i[1:5]),
   {
-    cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), append = TRUE)
+    cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
+        append = TRUE)
     mat_otu <- read.table(paste0(dir_output,
                                  "sparseDOSSA_sets/",
                                  i, ".tsv"),
