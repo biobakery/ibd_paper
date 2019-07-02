@@ -23,7 +23,7 @@ dir.create(paste0(dir_output, "sparseDOSSA_sets/"), recursive = TRUE, showWarnin
 ncores <- 20
 # sample size
 nBatch <- c(4, 6, 8)
-nSample <- c(1000)
+nSample_perBatch <- c(250)
 # feature size
 nMicrobe <- c(1000)
 spikeMicrobes <- c(0.2)
@@ -45,7 +45,7 @@ noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
   nBatch,
-  nSample,
+  nSample_perBatch,
   nMicrobe,
   spikeMicrobes,
   noZeroInflate,
@@ -53,14 +53,15 @@ tb_simSetup <- tidyr::crossing(
 ) %>% 
   dplyr::mutate(i_setup = 1:dplyr::n()) %>% 
   tidyr::crossing(rep) %>% 
-  dplyr::mutate(i = 1:dplyr::n())
+  dplyr::mutate(i = 1:dplyr::n(),
+                nSample = nSample_perBatch * nBatch)
 ```
 
 ```{r simulate metadata}
 set.seed(1)
 tb_sim <- tb_simSetup %>% 
   dplyr::group_by(i) %>% 
-  dplyr::mutate(df_metadata = list(generate_continuous_structure(nSample = nSample,
+  dplyr::mutate(df_metadata = list(generate_continuous_structure(nSample_perBatch = nSample_perBatch,
                                                                  nBatch = nBatch)),
                 spikein.mt = list(create_spikein.mt(
                   number_features = nMicrobe,
