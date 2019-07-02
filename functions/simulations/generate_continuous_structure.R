@@ -13,10 +13,17 @@
 #              score = score,
 #              row.names = paste0("Sample", 1:nSample))
 # }
-generate_continuous_structure <- function(nSample, nBatch) {
-  batch <- sample.int(nBatch, size = nSample, replace = TRUE)
-  score <- runif(nSample, min = -1, max = 1)
-  data.frame(batch = as.factor(batch), 
+# generate_continuous_structure <- function(nSample, nBatch) {
+#   batch <- sample.int(nBatch, size = nSample, replace = TRUE)
+#   score <- runif(nSample, min = -1, max = 1)
+#   data.frame(batch = as.factor(batch), 
+#              score = score,
+#              row.names = paste0("Sample", 1:nSample))
+# }
+generate_continuous_structure <- function(nSample_perBatch, nBatch) {
+  batch <- create_batch(nSample_perBatch, nBatch)
+  score <- runif(nSample_perBatch * nBatch, min = -1, max = 1)
+  data.frame(batch = as.factor(batch),
              score = score,
-             row.names = paste0("Sample", 1:nSample))
+             row.names = paste0("Sample", 1:(nSample_perBatch * nBatch)))
 }
