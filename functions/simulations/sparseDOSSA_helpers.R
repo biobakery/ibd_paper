@@ -1,18 +1,80 @@
+create_metadataMatrix <- function(df_metadata,
+                                  metadata_type,
+                                  fDummyData = TRUE,
+                                  scale = FALSE) {
+  if(any(colnames(df_metadata) != names(metadata_type)))
+    stop("Variable names in df_metadata and metadata_type do not agree!")
+  if(any(sapply(df_metadata, class) != metadata_type))
+    stop("Variable classes in df_metadata and metadata_type do not agree!")
+  l_mat_metadata <- lapply(names(metadata_type), function(variable) {
+    if(metadata_type[variable] != "factor" | !fDummyData) {
+      mat_tmp <- rbind(df_metadata[, variable])
+      rownames(mat_tmp) <- variable
+      return(mat_tmp)
+    } else {
+      lvls <- levels(df_metadata[, variable])
+      nlvls <- nlevels(df_metadata[, variable])
+      mat_tmp <- t(sapply(1:nlvls, function(ilvl) {
+        (df_metadata[, variable] == lvls[ilvl]) * 1
+      }))
+      rownames(mat_tmp) <- paste0(variable, "_", 1:nlvls)
+      return(mat_tmp)
+    }
+  })
+  mat_metadata <- Reduce("rbind", l_mat_metadata)
+  if(scale) {
+    mean_metadata <- apply(mat_metadata, 1, mean)
+    sd_metadata <- apply(mat_metadata, 1, sd)
+    sd_metadata[sd_metadata == 0] <- 1
+    mat_metadata <- (mat_metadata - mean_metadata) / sd_metadata
+  }
+  return(mat_metadata)
+}
+
+create_effectSize <- function(effectSize,
+                              df_metadata,
+                              metadata_type,
+                              fDummyData = TRUE) {
+  if(any(names(effectSize) != names(metadata_type)))
+    stop("Variable names in effectSize and metadata_type do not agree!")
+  if(any(colnames(df_metadata) != names(metadata_type)))
+    stop("Variable names in df_metadata and metadata_type do not agree!")
+  if(any(sapply(df_metadata, class) != metadata_type))
+    stop("Variable classes in df_metadata and metadata_type do not agree!")
+  l_effectSize <- lapply(names(metadata_type), function(variable) {
+    if(!fDummyData | metadata_type[variable] != "factor") {
+      effectSize_tmp <- effectSize[variable]
+      names(effectSize_tmp) <- variable
+      return(effectSize_tmp)
+    } else {
+      nlvls <- nlevels(df_metadata[, variable])
+      effectSize_tmp <- rep(effectSize[variable], nlvls)
+      names(effectSize_tmp) <- paste0(variable, "_", 1:nlvls)
+      return(effectSize_tmp)
+    }
+  })
+  return(unlist(l_effectSize))
+}
+
 create_spikein.mt <- function(number_features,
                               percent_spiked,
                               effectSize,
-                              seed,
-                              same_features = FALSE) {
-  set.seed(seed)
+                              direction = TRUE,
+                              same_features = FALSE,
+                              seed) {
   nFeatureSpiked <- floor(number_features * percent_spiked)
   if(nFeatureSpiked == 0)
     stop("No features are spiked in with current configuration!")
+  
   if(same_features) features_spike <- sample.int(n = number_features, size = nFeatureSpiked)
+  set.seed(seed)
   l_spikein.mt <- lapply(1:length(effectSize), function(i) {
     if(!same_features) features_spike <- sample.int(n = number_features, size = nFeatureSpiked)
+    strength <- rep(effectSize[i], nFeatureSpiked)
+    if(direction) strength[sample.int(nFeatureSpiked, size = floor(nFeatureSpiked / 2))] <- -effectSize[i]
     data.frame(feature = features_spike,
                metadata = i,
-               strength = effectSize[i],
+               strength = strength,
                stringsAsFactors = FALSE, row.names = NULL)
   })
   return(Reduce("rbind", l_spikein.mt))

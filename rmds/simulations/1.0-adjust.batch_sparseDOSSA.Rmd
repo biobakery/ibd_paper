@@ -23,7 +23,7 @@ dir.create(paste0(dir_output, "sparseDOSSA_sets/"), recursive = TRUE, showWarnin
 ncores <- 20
 # sample size
 nBatch <- c(2, 4, 6, 8)
-nSample <- c(200, 1000)
+nSample_perBatch <- c(10, 50, 250)
 # feature size
 nMicrobe <- c(200, 1000)
 spikeMicrobes <- c(0.05, 0.1, 0.2)
@@ -44,13 +44,13 @@ effectSize <- tibble::tibble(effectSize =
 rep <- 1:20
 # metadata simulation
 fDummyData <- TRUE
-fDummyDirection <- TRUE
+direction <- TRUE
 # additional setup
 noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
   nBatch,
-  nSample,
+  nSample_perBatch,
   nMicrobe,
   spikeMicrobes,
   noZeroInflate,
@@ -58,7 +58,8 @@ tb_simSetup <- tidyr::crossing(
 ) %>% 
   dplyr::mutate(i_setup = 1:dplyr::n()) %>% 
   tidyr::crossing(rep) %>% 
-  dplyr::mutate(i = 1:dplyr::n())
+  dplyr::mutate(i = 1:dplyr::n(),
+                nSample = nSample_perBatch * nBatch)
 ```
 
 ```{r simulate metadata}
@@ -66,8 +67,8 @@ set.seed(1)
 tb_sim <- tb_simSetup %>% 
   dplyr::group_by(i) %>% 
   dplyr::mutate(df_metadata = list(
-    data.frame(batch = sample.int(nBatch, size = nSample, replace = TRUE) %>%
-                 as.factor(),
+    data.frame(batch = create_batch(nSample_perBatch = nSample_perBatch,
+                                    nBatch = nBatch),
                positive_control1 = rbinom(n = nSample, size = 1, prob = 0.5) %>% 
                  as.factor(),
                positive_control2 = runif(n = nSample, min = -1, max = 1),
@@ -81,8 +82,8 @@ tb_sim <- tb_simSetup %>%
         create_effectSize(effectSize = effectSize[[1]],
                           df_metadata = df_metadata[[1]],
                           metadata_type = metadata_type,
-                          fDummyData = fDummyData,
-                          fDummyDirection = fDummyDirection),
+                          fDummyData = fDummyData),
+      direction = direction,
       seed = rep))) %>% 
   dplyr::ungroup()
 save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
@@ -97,21 +98,22 @@ l_sparseDOSSA <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
   {
     i_simSetup <- tb_sim[i, ]
-    
+    UserMetadata <- create_metadataMatrix(df_metadata = i_simSetup$df_metadata[[1]],
+                                          metadata_type = metadata_type,
+                                          fDummyData = fDummyData,
+                                          scale = FALSE)
+    if(nrow(UserMetadata) != max(i_simSetup$spikein.mt[[1]]$metadata))
+      stop("Number of metadata variables in UserMetadata does not agree with spikein matrix!",
+           " Something must've gone wrong!")
+      
     otu_count <- sparseDOSSA::sparseDOSSA(
       number_features = i_simSetup$nMicrobe,
       number_samples = i_simSetup$nSample,
-      UserMetadata = 
-        create_metadataMatrix(df_metadata = i_simSetup$df_metadata[[1]],
-                              metadata_type = metadata_type,
-                              fDummyData = fDummyData,
-                              fDummyDirection = fDummyDirection,
-                              scale = FALSE),
+      UserMetadata = UserMetadata,
       spikein.mt = i_simSetup$spikein.mt[[1]] %>% 
         dplyr::group_by(feature) %>% 
-        dplyr::mutate(metadata = paste(metadata, collapse = ";"), 
-                      strength = paste(strength, collapse = ";")) %>% 
-        dplyr::slice(1) %>%  
+        dplyr::summarise(metadata = paste(metadata, collapse = ";"), 
+                         strength = paste(strength, collapse = ";")) %>% 
         dplyr::ungroup(),
       noZeroInflate = i_simSetup$noZeroInflate,
       percent_spiked = i_simSetup$spikeMicrobes,
@@ -121,6 +123,7 @@ l_sparseDOSSA <- foreach::`%dopar%`(
       verbose = FALSE) %>%
       extract_sparseDOSSA() %>%
       extract2("features")
+    
     otu_count %>% data.frame() %>% 
       cbind(data.frame(Features = rownames(otu_count)), .) %>% 
       readr::write_tsv(path = paste0(dir_output, "sparseDOSSA_sets/", i, ".tsv"))
