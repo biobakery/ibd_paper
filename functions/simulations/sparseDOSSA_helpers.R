@@ -80,6 +80,15 @@ create_spikein.mt <- function(number_features,
   return(Reduce("rbind", l_spikein.mt))
 }
 
+format_spikein.mt <- function(df_spikein.mt) {
+  df_spikein.mt %>% 
+    dplyr::filter(strength != 0) %>% 
+    dplyr::group_by(feature) %>% 
+    dplyr::summarise(metadata = paste(metadata, collapse = ";"), 
+                     strength = paste(strength, collapse = ";")) %>% 
+    dplyr::ungroup()
+}
+
 extract_sparseDOSSA <- function(sparseDOSSA_fit) {
 
   # metadata + feature data

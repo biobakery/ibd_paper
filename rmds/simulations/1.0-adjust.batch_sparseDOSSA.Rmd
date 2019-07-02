@@ -110,11 +110,7 @@ l_sparseDOSSA <- foreach::`%dopar%`(
       number_features = i_simSetup$nMicrobe,
       number_samples = i_simSetup$nSample,
       UserMetadata = UserMetadata,
-      spikein.mt = i_simSetup$spikein.mt[[1]] %>% 
-        dplyr::group_by(feature) %>% 
-        dplyr::summarise(metadata = paste(metadata, collapse = ";"), 
-                         strength = paste(strength, collapse = ";")) %>% 
-        dplyr::ungroup(),
+      spikein.mt = format_spikein.mt(i_simSetup$spikein.mt[[1]]),
       noZeroInflate = i_simSetup$noZeroInflate,
       percent_spiked = i_simSetup$spikeMicrobes,
       seed = i_simSetup$i,
