@@ -44,10 +44,9 @@ results_BDMMA <-  foreach::`%dopar%`(
       as.matrix()
     i_simSetup <- tb_sim[i, ]
     df_metadata <- i_simSetup$df_metadata[[1]] %>% 
-      dplyr::mutate(filler = NA) %>% 
-      dplyr::select(main = exposure,
-                    confounder = filler,
-                    batch = batch)
+      dplyr::transmute(main = as.numeric(as.character(exposure)),
+                       confounder = NA_real_,
+                       batch = as.numeric(as.character(batch)))
     
     sSet <- SummarizedExperiment::SummarizedExperiment(
       assays = list(mat_otu),
