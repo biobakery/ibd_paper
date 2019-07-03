@@ -32,8 +32,8 @@ tb_sim <- tb_sim %>%
                   forcats::as_factor() %>% forcats::fct_inseq())
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
-  dplyr::arrange(nSample, nBatch) %>% 
-  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+  dplyr::arrange(nSample_perBatch, nBatch) %>% 
+  dplyr::mutate(nSample_nBatch = paste0("nSample per batch = ", nSample_perBatch, ", ",
                                         "nBatch = ", nBatch) %>% 
                   forcats::as_factor())
 # nMicrobe and percMicrobe spiked
