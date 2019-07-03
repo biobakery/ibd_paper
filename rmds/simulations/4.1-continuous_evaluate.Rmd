@@ -25,88 +25,88 @@ load(paste0(dir_output, "tb_sim.RData"))
 ```{r evaluate continuous score before correction}
 N <- nrow(tb_sim)
 cutoff <- seq(0.9, 0.1, by = -0.1)
-start.time <- Sys.time() 
-doParallel::registerDoParallel(ncores)
-results <- foreach::`%dopar%`(
-  foreach::foreach(i = 1:N),
-  {
-    cat(i, "\n", file = paste0(dir_output, "evaluate_before_progress.txt"), 
-        append = TRUE)
-    mat_otu <- read.table(paste0(dir_output,
-                                 "sparseDOSSA_sets/",
-                                 i, ".tsv"),
-                          header = TRUE,
-                          sep = "\t",
-                          row.names = 1) %>% 
-      as.matrix
-    i_simSetup <- tb_sim[i, ]
-    df_metadata <- i_simSetup$df_metadata[[1]]
-    
-    phylo <- phyloseq::phyloseq(
-      phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      phyloseq::sample_data(df_metadata)) %>%
-      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
-      smar::prune_taxaSamples()
-    D <- phyloseq::distance(phylo, method = "bray")
-    R2_batch <- vegan::adonis(D ~ batch,
-                              data = smar::sample_data2(phylo),
-                              permutations = 2)$aov.tab["batch", "R2"]
-    R2_score <- vegan::adonis(D ~ score,
-                              data = smar::sample_data2(phylo),
-                              permutations = 2)$aov.tab["score", "R2"]
-    
-    
-     # naive PCA
-    fit.pca <- mat_otu %>% 
-          apply(2, MMUPHin:::tss) %>% 
-          sqrt() %>% asin() %>% 
-          t() %>% 
-          prcomp() 
-    cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
-    
-    for(cor.cutoff in cutoff) {
-      fit.continuous <- MMUPHin::continuous.discover(feature.abd = mat_otu,
-                                                     batch = "batch",
-                                                     data = df_metadata,
-                                                     normalization = "TSS",
-                                                     transform = "AST",
-                                                     cor.cutoff = cor.cutoff,
-                                                     cluster_function = igraph::cluster_fast_greedy,
-                                                     plot.clustered.network = FALSE,
-                                                     diagnostics = FALSE,
-                                                     verbose = FALSE)
-      if(is.null(fit.continuous)) next
-      if(median(fit.continuous$mat.vali[, 1]) > cor.cutoff) break
-    }
-    if(!is.null(fit.continuous)) {
-      mat_otu_transformed <- levels(df_metadata$batch) %>% 
-        purrr::map(function(lvl.batch) {
-          mat_otu[, df_metadata$batch == lvl.batch] %>% 
-          apply(2, MMUPHin:::tss) %>% 
-            sqrt() %>% asin() %>% 
-            t() %>% apply(2, function(x) x - mean(x))
-        }) %>% purrr::reduce(rbind)
-      mat_otu_transformed <- mat_otu_transformed[colnames(mat_otu), ]
-      correlation <- mat_otu_transformed %>% 
-        `%*%`(fit.continuous$consensus.loading[, 1]) %>% 
-        cor(df_metadata$score, method = "spearman")
-      return(list(R2 = c("batch" = R2_batch,
-                         "score" = R2_score),
-                  cor.pca = cor.pca,
-                  fit.continuous = list(cor.cutoff = cor.cutoff,
-                                        fit.continuous = fit.continuous,
-                                        correlation = correlation[1, 1]))
-      )
-    }
-    return(list(R2 = c("batch" = R2_batch,
-                       "score" = R2_score),
-                cor.pca = cor.pca,
-                fit.continuous = NULL))
-  }
-)
-doParallel::stopImplicitCluster()
-save(results, file = paste0(dir_output, "evaluate_before.RData"))
-print(Sys.time() - start.time)
+# start.time <- Sys.time() 
+# doParallel::registerDoParallel(ncores)
+# results <- foreach::`%dopar%`(
+#   foreach::foreach(i = 1:N),
+#   {
+#     cat(i, "\n", file = paste0(dir_output, "evaluate_before_progress.txt"), 
+#         append = TRUE)
+#     mat_otu <- read.table(paste0(dir_output,
+#                                  "sparseDOSSA_sets/",
+#                                  i, ".tsv"),
+#                           header = TRUE,
+#                           sep = "\t",
+#                           row.names = 1) %>% 
+#       as.matrix
+#     i_simSetup <- tb_sim[i, ]
+#     df_metadata <- i_simSetup$df_metadata[[1]]
+#     
+#     phylo <- phyloseq::phyloseq(
+#       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+#       phyloseq::sample_data(df_metadata)) %>%
+#       phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+#       smar::prune_taxaSamples()
+#     D <- phyloseq::distance(phylo, method = "bray")
+#     R2_batch <- vegan::adonis(D ~ batch,
+#                               data = smar::sample_data2(phylo),
+#                               permutations = 2)$aov.tab["batch", "R2"]
+#     R2_score <- vegan::adonis(D ~ score,
+#                               data = smar::sample_data2(phylo),
+#                               permutations = 2)$aov.tab["score", "R2"]
+#     
+#     
+#      # naive PCA
+#     fit.pca <- mat_otu %>% 
+#           apply(2, MMUPHin:::tss) %>% 
+#           sqrt() %>% asin() %>% 
+#           t() %>% 
+#           prcomp() 
+#     cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
+#     
+#     for(cor.cutoff in cutoff) {
+#       fit.continuous <- MMUPHin::continuous.discover(feature.abd = mat_otu,
+#                                                      batch = "batch",
+#                                                      data = df_metadata,
+#                                                      normalization = "TSS",
+#                                                      transform = "AST",
+#                                                      cor.cutoff = cor.cutoff,
+#                                                      cluster_function = igraph::cluster_fast_greedy,
+#                                                      plot.clustered.network = FALSE,
+#                                                      diagnostics = FALSE,
+#                                                      verbose = FALSE)
+#       if(is.null(fit.continuous)) next
+#       if(median(fit.continuous$mat.vali[, 1]) > cor.cutoff) break
+#     }
+#     if(!is.null(fit.continuous)) {
+#       mat_otu_transformed <- levels(df_metadata$batch) %>% 
+#         purrr::map(function(lvl.batch) {
+#           mat_otu[, df_metadata$batch == lvl.batch] %>% 
+#           apply(2, MMUPHin:::tss) %>% 
+#             sqrt() %>% asin() %>% 
+#             t() %>% apply(2, function(x) x - mean(x))
+#         }) %>% purrr::reduce(rbind)
+#       mat_otu_transformed <- mat_otu_transformed[colnames(mat_otu), ]
+#       correlation <- mat_otu_transformed %>% 
+#         `%*%`(fit.continuous$consensus.loading[, 1]) %>% 
+#         cor(df_metadata$score, method = "spearman")
+#       return(list(R2 = c("batch" = R2_batch,
+#                          "score" = R2_score),
+#                   cor.pca = cor.pca,
+#                   fit.continuous = list(cor.cutoff = cor.cutoff,
+#                                         fit.continuous = fit.continuous,
+#                                         correlation = correlation[1, 1]))
+#       )
+#     }
+#     return(list(R2 = c("batch" = R2_batch,
+#                        "score" = R2_score),
+#                 cor.pca = cor.pca,
+#                 fit.continuous = NULL))
+#   }
+# )
+# doParallel::stopImplicitCluster()
+# save(results, file = paste0(dir_output, "evaluate_before.RData"))
+# print(Sys.time() - start.time)
 ```
 
 ```{r batch correction and continuous discovery}
