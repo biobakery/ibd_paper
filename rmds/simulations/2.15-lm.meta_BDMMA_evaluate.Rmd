@@ -15,22 +15,23 @@ smar::sourceDir("functions/simulations/", recursive = FALSE)
 setup("./")
 dir_output <- "results/simulations/lm.meta/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
+dir.create(paste0(dir_output, "BDMMA/"), recursive = TRUE, showWarnings = TRUE)
 ```
 
 ```{r load data}
-ncores <- 5
+ncores <- 2
 load(paste0(dir_output, "tb_sim.RData"))
 ```
 ```{r use BDMMA}
 tb_sim_subset <- tb_sim %>% 
-  dplyr::filter(nSample == 200,
+  dplyr::filter(nSample_perBatch == 50,
                 nMicrobe == 200,
                 spikeMicrobes == 0.05)
   
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_BDMMA <-  foreach::`%dopar%`(
-  foreach::foreach(i = tb_sim_subset$i[1:5]),
+  foreach::foreach(i = tb_sim_subset$i[1:2]),
   {
     cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
         append = TRUE)
@@ -53,7 +54,9 @@ results_BDMMA <-  foreach::`%dopar%`(
       colData = df_metadata
     )
     fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
-    return(fit.BDMMA)
+    write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"), 
+                sep = "\t")
+    return(fit.BDMMA[-1])
   }
 ) 
 doParallel::stopImplicitCluster()
