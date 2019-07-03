@@ -66,25 +66,28 @@ tb_simSetup <- tidyr::crossing(
 set.seed(1)
 tb_sim <- tb_simSetup %>% 
   dplyr::group_by(i) %>% 
-  dplyr::mutate(df_metadata = list(
-    data.frame(batch = create_batch(nSample_perBatch = nSample_perBatch,
-                                    nBatch = nBatch),
-               positive_control1 = rbinom(n = nSample, size = 1, prob = 0.5) %>% 
-                 as.factor(),
-               positive_control2 = runif(n = nSample, min = -1, max = 1),
-               negative_control = rbinom(n = nSample, size = 1, prob = 0.5) %>% 
-                 as.factor(),
-               row.names = paste0("Sample", 1:nSample))),
-    spikein.mt = list(create_spikein.mt(
-      number_features = nMicrobe,
-      percent_spiked = spikeMicrobes,
-      effectSize = 
-        create_effectSize(effectSize = effectSize[[1]],
-                          df_metadata = df_metadata[[1]],
-                          metadata_type = metadata_type,
-                          fDummyData = fDummyData),
-      direction = direction,
-      seed = rep))) %>% 
+  dplyr::mutate(
+    df_metadata = 
+      data.frame(batch = create_batch(nSample_perBatch = nSample_perBatch,
+                                      nBatch = nBatch),
+                 positive_control1 = rbinom(n = nSample, size = 1, prob = 0.5) %>% 
+                   as.factor(),
+                 positive_control2 = runif(n = nSample, min = -1, max = 1),
+                 negative_control = rbinom(n = nSample, size = 1, prob = 0.5) %>% 
+                   as.factor(),
+                 row.names = paste0("Sample", 1:nSample)) %>% 
+      list(),
+    spikein.mt = 
+      create_effectSize(effectSize = effectSize[[1]],
+                        df_metadata = df_metadata[[1]],
+                        metadata_type = metadata_type,
+                        fDummyData = fDummyData) %>%
+      create_spikein.mt(number_features = nMicrobe,
+                        percent_spiked = spikeMicrobes,
+                        effectSize = .,
+                        direction = direction,
+                        seed = rep) %>%
+      list()) %>% 
   dplyr::ungroup()
 save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
 ```
@@ -105,7 +108,7 @@ l_sparseDOSSA <- foreach::`%dopar%`(
     if(nrow(UserMetadata) != max(i_simSetup$spikein.mt[[1]]$metadata))
       stop("Number of metadata variables in UserMetadata does not agree with spikein matrix!",
            " Something must've gone wrong!")
-      
+    
     otu_count <- sparseDOSSA::sparseDOSSA(
       number_features = i_simSetup$nMicrobe,
       number_samples = i_simSetup$nSample,

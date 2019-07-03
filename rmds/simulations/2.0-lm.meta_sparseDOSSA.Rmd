@@ -23,15 +23,13 @@ dir.create(paste0(dir_output, "sparseDOSSA_sets/"), recursive = TRUE, showWarnin
 ncores <- 20
 # sample size
 nBatch <- c(2)
-nSample <- c(200, 1000)
+nSample_perBatch <- c(50, 250)
 # feature size
 nMicrobe <- c(200, 1000)
 spikeMicrobes <- c(0.05, 0.1, 0.2)
 # metadata specification
 imbalance <- c(0, 0.1, 0.2, 0.3, 0.4)
-tb_metadataType <- tibble::tibble(
-  metadata_type = list(c("batch" = "factor")
-  ))
+metadata_type = c("batch" = "factor")
 tb_effectSize <- tidyr::crossing(batch = 0:10)
 effectSize <- tibble::tibble(effectSize = 
                                (1:nrow(tb_effectSize)) %>% 
@@ -41,53 +39,44 @@ effectSize <- tibble::tibble(effectSize =
 rep <- 1:20
 # metadata simulation
 fDummyData <- TRUE
-fDummyDirection <- TRUE
+direction <- TRUE
 # additional setup
 noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
   nBatch,
-  nSample,
+  nSample_perBatch,
   nMicrobe,
   spikeMicrobes,
   noZeroInflate,
-  tb_metadataType,
   imbalance,
   effectSize
 ) %>% 
   dplyr::mutate(i_setup = 1:dplyr::n()) %>% 
   tidyr::crossing(rep) %>% 
-  dplyr::mutate(i = 1:dplyr::n())
+  dplyr::mutate(i = 1:dplyr::n(),
+                nSample = nSample_perBatch * nBatch)
 ```
 
 ```{r simulate metadata}
 set.seed(1)
-exposure <- function(batch, imbalance) { # helper funciton for simulating exposure metadata
-  exposure <- rep(NA_real_, length = length(batch))
-  exposure[batch == 1] <- 1 * (sample.int(n = sum(batch == 1)) <= 
-                                 round(sum(batch == 1) * (0.5 - imbalance), digits = 0)) 
-  exposure[batch == 2] <- 1 * (sample.int(n = sum(batch == 2)) <= 
-                                 round(sum(batch == 2) * (0.5 + imbalance), digits = 0))
-  return(exposure)
-}
 tb_sim <- tb_simSetup %>% 
   dplyr::group_by(i) %>% 
-  dplyr::mutate(df_metadata = list(
-    data.frame(batch = (1 + (sample.int(n = nSample) <= round(nSample/2, digits = 0))) %>%
-                 as.factor(),
-               row.names = paste0("Sample", 1:nSample)) %>% 
-      tibble::rownames_to_column("Sample") %>% 
-      dplyr::mutate(exposure = exposure(batch, imbalance) %>% as.numeric()) %>% 
-      tibble::column_to_rownames("Sample")),
+  dplyr::mutate(
+    df_metadata = 
+      create_imbalancedBatches(nSample_perBatch = nSample_perBatch,
+                               nBatch = nBatch,
+                               imbalance = imbalance) %>% 
+      list(),
     spikein.mt = 
       create_effectSize(effectSize = effectSize[[1]],
                         df_metadata = df_metadata[[1]][, "batch", drop = FALSE],
-                        metadata_type = c("batch" = "factor"),
-                        fDummyData = fDummyData,
-                        fDummyDirection = fDummyDirection) %>% 
+                        metadata_type = metadata_type,
+                        fDummyData = fDummyData) %>% 
       create_spikein.mt(number_features = nMicrobe,
                         percent_spiked = spikeMicrobes,
                         effectSize = .,
+                        direction = direction,
                         seed = i) %>%
       list()) %>% 
   dplyr::ungroup()
@@ -103,22 +92,20 @@ l_sparseDOSSA <- foreach::`%dopar%`(
   foreach::foreach(i = 1:N),
   {
     i_simSetup <- tb_sim[i, ]
+    UserMetadata <- create_metadataMatrix(
+      df_metadata = i_simSetup$df_metadata[[1]][, "batch", drop = FALSE],
+      metadata_type = metadata_type,
+      fDummyData = fDummyData,
+      scale = FALSE)
+    if(nrow(UserMetadata) != max(i_simSetup$spikein.mt[[1]]$metadata))
+      stop("Number of metadata variables in UserMetadata does not agree with spikein matrix!",
+           " Something must've gone wrong!")
     
     otu_count <- sparseDOSSA::sparseDOSSA(
       number_features = i_simSetup$nMicrobe,
       number_samples = i_simSetup$nSample,
-      UserMetadata = 
-        create_metadataMatrix(df_metadata = i_simSetup$df_metadata[[1]][, "batch", 
-                                                                        drop = FALSE],
-                              metadata_type = c("batch" = "factor"),
-                              fDummyData = fDummyData,
-                              fDummyDirection = fDummyDirection),
-      spikein.mt = i_simSetup$spikein.mt[[1]] %>% 
-        dplyr::group_by(feature) %>% 
-        dplyr::mutate(metadata = paste(metadata, collapse = ";"), 
-                      strength = paste(strength, collapse = ";")) %>% 
-        dplyr::slice(1) %>%  
-        dplyr::ungroup(),
+      UserMetadata = UserMetadata,
+      spikein.mt = format_spikein.mt(i_simSetup$spikein.mt[[1]]),
       noZeroInflate = i_simSetup$noZeroInflate,
       percent_spiked = i_simSetup$spikeMicrobes,
       seed = i_simSetup$i,
