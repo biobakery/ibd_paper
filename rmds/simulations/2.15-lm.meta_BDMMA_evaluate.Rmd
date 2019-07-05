@@ -31,7 +31,7 @@ tb_sim_subset <- tb_sim %>%
 start.time <- Sys.time()
 doParallel::registerDoParallel(ncores)
 results_BDMMA <-  foreach::`%dopar%`(
-  foreach::foreach(i = tb_sim_subset$i),
+  foreach::foreach(i = tb_sim_subset$i[1:20]),
   {
     cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
         append = TRUE)
