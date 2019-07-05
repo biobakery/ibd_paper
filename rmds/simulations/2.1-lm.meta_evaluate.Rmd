@@ -23,128 +23,128 @@ load(paste0(dir_output, "tb_sim.RData"))
 
 ```{r run meta-analysis before batch adjustment}
 N <- nrow(tb_sim)
-start.time <- Sys.time()
-doParallel::registerDoParallel(ncores)
-results <-  foreach::`%dopar%`(
-  foreach::foreach(i = 1:N),
-  {
-    cat(i, "\n", file = paste0(dir_output, "evaluate_before_progress.txt"), append = TRUE)
-    mat_otu <- read.table(paste0(dir_output,
-                                 "sparseDOSSA_sets/",
-                                 i, ".tsv"),
-                          header = TRUE,
-                          sep = "\t",
-                          row.names = 1) %>%
-      as.matrix
-    i_simSetup <- tb_sim[i, ]
-    df_metadata <- i_simSetup$df_metadata[[1]]
-
-    phylo <- phyloseq::phyloseq(
-      phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      phyloseq::sample_data(df_metadata)) %>%
-      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
-      smar::prune_taxaSamples()
-    D <- phyloseq::distance(phylo, method = "bray")
-    R2_exposure <- vegan::adonis(D ~ exposure,
-                                 data = smar::sample_data2(phylo),
-                                 permutations = 2)$aov.tab["exposure", "R2"]
-    R2_batch <- vegan::adonis(D ~ batch,
-                              data = smar::sample_data2(phylo),
-                              permutations = 2)$aov.tab["batch", "R2"]
-
-    fit_lm.meta <- MMUPHin::lm.meta(
-      feature.abd = mat_otu,
-      batch = "batch",
-      exposure = "exposure",
-      data = df_metadata,
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_before/", i, "/"),
-      forest.plots = TRUE,
-      verbose = TRUE)
-    fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
-      feature.abd = mat_otu,
-      data = df_metadata,
-      exposure = "exposure",
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_before/", i, "/all/")
-    )
-    return(list(MMUPHin = fit_lm.meta$meta.results,
-                naive = fit_Maaslin2,
-                R2 = c("exposure" = R2_exposure,
-                       "batch" = R2_batch)))
-  }
-)
-doParallel::stopImplicitCluster()
-save(results, file = paste0(dir_output, "evaluate_before.RData"))
-print(Sys.time() - start.time)
+# start.time <- Sys.time()
+# doParallel::registerDoParallel(ncores)
+# results <-  foreach::`%dopar%`(
+#   foreach::foreach(i = 1:N),
+#   {
+#     cat(i, "\n", file = paste0(dir_output, "evaluate_before_progress.txt"), append = TRUE)
+#     mat_otu <- read.table(paste0(dir_output,
+#                                  "sparseDOSSA_sets/",
+#                                  i, ".tsv"),
+#                           header = TRUE,
+#                           sep = "\t",
+#                           row.names = 1) %>%
+#       as.matrix
+#     i_simSetup <- tb_sim[i, ]
+#     df_metadata <- i_simSetup$df_metadata[[1]]
+# 
+#     phylo <- phyloseq::phyloseq(
+#       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+#       phyloseq::sample_data(df_metadata)) %>%
+#       phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+#       smar::prune_taxaSamples()
+#     D <- phyloseq::distance(phylo, method = "bray")
+#     R2_exposure <- vegan::adonis(D ~ exposure,
+#                                  data = smar::sample_data2(phylo),
+#                                  permutations = 2)$aov.tab["exposure", "R2"]
+#     R2_batch <- vegan::adonis(D ~ batch,
+#                               data = smar::sample_data2(phylo),
+#                               permutations = 2)$aov.tab["batch", "R2"]
+# 
+#     fit_lm.meta <- MMUPHin::lm.meta(
+#       feature.abd = mat_otu,
+#       batch = "batch",
+#       exposure = "exposure",
+#       data = df_metadata,
+#       normalization = "TSS",
+#       transform = "AST",
+#       output = paste0(dir_output, "MMUPHin_before/", i, "/"),
+#       forest.plots = TRUE,
+#       verbose = TRUE)
+#     fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
+#       feature.abd = mat_otu,
+#       data = df_metadata,
+#       exposure = "exposure",
+#       normalization = "TSS",
+#       transform = "AST",
+#       output = paste0(dir_output, "MMUPHin_before/", i, "/all/")
+#     )
+#     return(list(MMUPHin = fit_lm.meta$meta.results,
+#                 naive = fit_Maaslin2,
+#                 R2 = c("exposure" = R2_exposure,
+#                        "batch" = R2_batch)))
+#   }
+# )
+# doParallel::stopImplicitCluster()
+# save(results, file = paste0(dir_output, "evaluate_before.RData"))
+# print(Sys.time() - start.time)
 ```
 
 ```{r batch correction and run meta-analysis}
-start.time <- Sys.time()
-doParallel::registerDoParallel(ncores)
-results_correct <-  foreach::`%dopar%`(
-  foreach::foreach(i = 1:N),
-  {
-    cat(i, "\n", file = paste0(dir_output, "evaluate_after_progress.txt"), append = TRUE)
-    mat_otu <- read.table(paste0(dir_output,
-                                 "sparseDOSSA_sets/",
-                                 i, ".tsv"),
-                          header = TRUE,
-                          sep = "\t",
-                          row.names = 1) %>%
-      as.matrix
-    i_simSetup <- tb_sim[i, ]
-    df_metadata <- i_simSetup$df_metadata[[1]]
-
-    mat_otu <- mat_otu %>%
-      MMUPHin::adjust.batch(batch = "batch",
-                            covariates = "exposure",
-                            data = df_metadata,
-                            diagnostics = FALSE,
-                            verbose = FALSE)
-
-    phylo <- phyloseq::phyloseq(
-      phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
-      phyloseq::sample_data(df_metadata)) %>%
-      phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
-      smar::prune_taxaSamples()
-    D <- phyloseq::distance(phylo, method = "bray")
-    R2_exposure <- vegan::adonis(D ~ exposure,
-                                 data = smar::sample_data2(phylo),
-                                 permutations = 2)$aov.tab["exposure", "R2"]
-    R2_batch <- vegan::adonis(D ~ batch,
-                              data = smar::sample_data2(phylo),
-                              permutations = 2)$aov.tab["batch", "R2"]
-
-    fit_lm.meta <- MMUPHin::lm.meta(
-      feature.abd = mat_otu,
-      batch = "batch",
-      exposure = "exposure",
-      data = df_metadata,
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_after/", i, "/"),
-      forest.plots = FALSE,
-      verbose = FALSE)
-    fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
-      feature.abd = mat_otu,
-      data = df_metadata,
-      exposure = "exposure",
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_after/", i, "/all/")
-    )
-    return(list(MMUPHin = fit_lm.meta$meta.results,
-                naive = fit_Maaslin2,
-                R2 = c("exposure" = R2_exposure,
-                       "batch" = R2_batch)))
-  }
-)
-doParallel::stopImplicitCluster()
-save(results_correct, file = paste0(dir_output, "evaluate_after.RData"))
-print(Sys.time() - start.time)
+# start.time <- Sys.time()
+# doParallel::registerDoParallel(ncores)
+# results_correct <-  foreach::`%dopar%`(
+#   foreach::foreach(i = 1:N),
+#   {
+#     cat(i, "\n", file = paste0(dir_output, "evaluate_after_progress.txt"), append = TRUE)
+#     mat_otu <- read.table(paste0(dir_output,
+#                                  "sparseDOSSA_sets/",
+#                                  i, ".tsv"),
+#                           header = TRUE,
+#                           sep = "\t",
+#                           row.names = 1) %>%
+#       as.matrix
+#     i_simSetup <- tb_sim[i, ]
+#     df_metadata <- i_simSetup$df_metadata[[1]]
+# 
+#     mat_otu <- mat_otu %>%
+#       MMUPHin::adjust.batch(batch = "batch",
+#                             covariates = "exposure",
+#                             data = df_metadata,
+#                             diagnostics = FALSE,
+#                             verbose = FALSE)
+# 
+#     phylo <- phyloseq::phyloseq(
+#       phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+#       phyloseq::sample_data(df_metadata)) %>%
+#       phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+#       smar::prune_taxaSamples()
+#     D <- phyloseq::distance(phylo, method = "bray")
+#     R2_exposure <- vegan::adonis(D ~ exposure,
+#                                  data = smar::sample_data2(phylo),
+#                                  permutations = 2)$aov.tab["exposure", "R2"]
+#     R2_batch <- vegan::adonis(D ~ batch,
+#                               data = smar::sample_data2(phylo),
+#                               permutations = 2)$aov.tab["batch", "R2"]
+# 
+#     fit_lm.meta <- MMUPHin::lm.meta(
+#       feature.abd = mat_otu,
+#       batch = "batch",
+#       exposure = "exposure",
+#       data = df_metadata,
+#       normalization = "TSS",
+#       transform = "AST",
+#       output = paste0(dir_output, "MMUPHin_after/", i, "/"),
+#       forest.plots = FALSE,
+#       verbose = FALSE)
+#     fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
+#       feature.abd = mat_otu,
+#       data = df_metadata,
+#       exposure = "exposure",
+#       normalization = "TSS",
+#       transform = "AST",
+#       output = paste0(dir_output, "MMUPHin_after/", i, "/all/")
+#     )
+#     return(list(MMUPHin = fit_lm.meta$meta.results,
+#                 naive = fit_Maaslin2,
+#                 R2 = c("exposure" = R2_exposure,
+#                        "batch" = R2_batch)))
+#   }
+# )
+# doParallel::stopImplicitCluster()
+# save(results_correct, file = paste0(dir_output, "evaluate_after.RData"))
+# print(Sys.time() - start.time)
 ```
 
 ```{r use percentile normalization}
