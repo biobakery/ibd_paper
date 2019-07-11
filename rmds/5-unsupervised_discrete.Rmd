@@ -13,98 +13,210 @@ Perform unsupervised discrete structure discovery.
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+smar::sourceDir("functions/")
+setup("./")
 dir_output <- "results/5-unsupervised_discrete/"
 dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ```{r load data}
-load("data/phyloseq/genera_adj.RData")
-load("data/distance/dist_genera_adj.RData")
-k.max <- 7
+load("data/physeq/genera_adj.RData")
+tb_metadata <- smar::sample_data2(physeq_genera_adj) %>% 
+  dplyr::filter(!(dataset_name %in% studies_longitudinal) |
+                  is_baseline)
+l_dist <- list()
+for(i_distName in c("bray", "jaccard", "jsd")) {
+  dir.create(paste0(dir_output, i_distName, "/data/"), recursive = TRUE, showWarnings = TRUE)
+  load(paste0("data/distance/", i_distName, "/dist_genera_adj.RData"))
+  if(i_distName == "jsd") # root JSD is a TRUE distance metric
+    dist_genera_adj <- sqrt(dist_genera_adj)
+  l_dist[[i_distName]] <- dist_genera_adj
+}
+k_max <- 8
 M <- 30
 ```
 
-# UC patients
-```{r UC}
-dir_outputChunk <- paste0(dir_output, "UC/")
-dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
-phylo_tmp <- phylo_genera_adj %>% 
-  phyloseq::subset_samples(disease %in% "UC")
-otu_tmp <- otu_table2(phylo_tmp)
-metadata_tmp <- sample_data2(phylo_tmp)
-distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
-  as.dist()
-fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
-                                           batch = "dataset_name",
-                                           data = metadata_tmp,
-                                           distance = distance_tmp,
-                                           k.max = k.max,
-                                           cluster.method = fpc::claraCBI,
-                                           classify.method = "centroid",
-                                           M = M,
-                                           nnk = 1,
-                                           diagnostics = TRUE,
-                                           verbose = FALSE)
-ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
-       width = k.max/7*length(unique(metadata_tmp$dataset_name)) + 3,
-       height = 5)
-save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
-```
-# CD patients
-```{r CD}
-dir_outputChunk <- paste0(dir_output, "CD/")
-dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
-phylo_tmp <- phylo_genera_adj %>% 
-  phyloseq::subset_samples(disease %in% "CD")
-otu_tmp <- otu_table2(phylo_tmp)
-metadata_tmp <- sample_data2(phylo_tmp)
-distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
-  as.dist()
-fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
-                                           batch = "dataset_name",
-                                           data = metadata_tmp,
-                                           distance = distance_tmp,
-                                           k.max = k.max,
-                                           cluster.method = fpc::claraCBI,
-                                           classify.method = "centroid",
-                                           M = M,
-                                           nnk = 1,
-                                           diagnostics = TRUE,
-                                           verbose = FALSE)
-ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
-       width = k.max/7*length(unique(metadata_tmp$dataset_name)),
-       height = 5)
-save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
+# SW and CH
+```{r estimate SW and CH}
+set.seed(1)
+for(i_distName in c("bray", "jaccard", "jsd")) {
+  for(i_disease in c("IBD", "CD", "UC")) {
+    if(i_disease == "IBD") {
+      tb_metadata_subset <- tb_metadata %>% 
+        dplyr::filter(disease %in% c("CD", "UC"))
+    } else {
+      tb_metadata_subset <- tb_metadata %>% 
+        dplyr::filter(disease %in% i_disease)
+    }
+    tb_metadata_subset <- tb_metadata_subset %>% 
+      dplyr::group_by(dataset_name) %>% 
+      dplyr::filter(dplyr::n() >= 33)
+    l_fitClustering <- unique(tb_metadata_subset$dataset_name) %>% 
+      purrr::map(function(i_study) {
+        i_distSubset <- tb_metadata_subset %>% 
+          dplyr::filter(dataset_name == i_study) %>% 
+          extract2("sample_accession_16S") %>% 
+          smar::subset_distance(l_dist[[i_distName]], .)
+        
+        # pam fits
+        l_fit <- (2:k_max) %>% 
+          purrr::map(function(i_k) {
+            fit_pam <- fpc::pamk(data = i_distSubset, 
+                                 krange = i_k, 
+                                 criterion = "ch",
+                                 usepam = TRUE, diss = TRUE)
+            return(fit_pam)
+          })
+        i_tbFit <- l_fit %>% 
+          purrr::map2_dfr(2:k_max,
+                          ~ tibble::tibble(
+                            k = .y,
+                            measure = c("ch", "asw"),
+                            value = c(.x$crit[.y],
+                                      .x$pamobject$silinfo$avg.width)))
+        save(l_fit, file = paste0(dir_output, i_distName, "/data/",
+                                  i_disease, "_", i_study, "_",
+                                  "pamFits.RData"))
+        
+        
+        # visualize clustering in MDS space
+        fit_pcos <- ape::pcoa(i_distSubset)
+        xy_labels <- round(fit_pcos$values$Relative_eig[1:2] * 100, digits = 1) %>% 
+          paste0(c("Axis.1 (", "Axis.2 ("), ., "%)")
+        save(fit_pcos, file = paste0(dir_output, i_distName, "/data/",
+                                     i_disease, "_", i_study, "_",
+                                     "ordination.RData"))
+        tb_optimKs <- i_tbFit %>% 
+          dplyr::group_by(measure) %>% 
+          dplyr::arrange(-value) %>% 
+          dplyr::summarise(max_k = k[1])
+        l_p <- tb_optimKs$max_k %>% 
+          purrr::map2(tb_optimKs$measure, 
+                      function(k_optim, i_measure) {
+                        fit_pcos$vectors %>% 
+                          data.frame() %>% 
+                          dplyr::mutate(clustering = l_fit[[k_optim - 1]]$pamobject$clustering %>% 
+                                          as.factor()) %>% 
+                          ggplot(aes(x = Axis.1, y = Axis.2, color = clustering)) +
+                          geom_point() +
+                          xlab(xy_labels[1]) + ylab(xy_labels[2]) +
+                          coord_fixed() +
+                          ggtitle(i_measure)
+                      })
+        i_p <- cowplot::plot_grid(plotlist = l_p, labels = c(i_study, "")) 
+        
+        return(list(i_tbFit = i_tbFit %>% dplyr::mutate(study = i_study),
+                    i_p = i_p))
+        # bootstrap??
+        # i_matDistSubset = as.matrix(i_distSubset)
+        # i_tbFitBoot <- (2:k_max) %>% 
+        #   purrr::map_dfr(function(i_k) {
+        #     (1:M) %>% 
+        #       purrr::map_dfr(function(r) {
+        #         bootSample <- sample.int(nrow(i_matDistSubset), replace = TRUE)
+        #         i_distSubsetBoot <- as.dist(i_matDistSubset[bootSample, bootSample])
+        #         fit_pam <- fpc::pamk(data = i_distSubsetBoot, 
+        #                              krange = i_k, 
+        #                              criterion = "ch",
+        #                              usepam = TRUE, diss = TRUE)
+        #         tibble::tibble(k = i_k,
+        #                        measure = c("ch", "asw"),
+        #                        value = c(fit_pam$crit[i_k],
+        #                                  fit_pam$pamobject$silinfo$avg.width),
+        #                        R = r)
+        #       })
+        #   })
+      })
+    
+    # visualize ordination results
+    pdf(paste0(dir_output, i_distName, "/ordination_", i_disease, ".pdf"),
+        width = 10,
+        height = 4)
+    for(i in 1:length(l_fitClustering))
+      print(l_fitClustering[[i]]$i_p)
+    dev.off()
+    
+    tb_fitClustering <- l_fitClustering %>% 
+      purrr::map_dfr("i_tbFit")
+    p <- tb_fitClustering %>% 
+      readr::write_tsv(paste0(dir_output, i_distName, "/",
+                              "results_CHSW_", i_disease, ".tsv")) %>% 
+      ggplot(aes(x = k, y = value)) +
+      geom_point() + geom_line() +
+      scale_x_continuous(breaks = 2:8) +
+      facet_wrap(~ measure + study, scales = "free_y", nrow = 2)
+    ggsave(paste0(dir_output, i_distName, "/",
+                  "visualize_CHSW_", i_disease, ".pdf"),
+           p,
+           width = 3*length(unique(tb_metadata_subset$dataset_name)), height = 8)
+  }
+}
 ```
 
-# IBD patients
-```{r IBD}
-dir_outputChunk <- paste0(dir_output, "IBD/")
-dir.create(dir_outputChunk, recursive = TRUE, showWarnings = TRUE)
-phylo_tmp <- phylo_genera_adj %>% 
-  phyloseq::subset_samples(disease %in% c("CD", "UC"))
-otu_tmp <- otu_table2(phylo_tmp)
-metadata_tmp <- sample_data2(phylo_tmp)
-distance_tmp <- as.matrix(dist_genera_adj)[rownames(metadata_tmp), rownames(metadata_tmp)] %>% 
-  as.dist()
-fit_discrete <- MMUPHin::discrete.discover(feature.count = otu_tmp,
-                                           batch = "dataset_name",
-                                           data = metadata_tmp,
-                                           distance = distance_tmp,
-                                           k.max = k.max,
-                                           cluster.method = fpc::claraCBI,
-                                           classify.method = "centroid",
-                                           M = M,
-                                           nnk = 1,
-                                           diagnostics = TRUE,
-                                           verbose = FALSE)
-ggsave(filename = paste0(dir_outputChunk, "validation.pdf"),
-       width = k.max/7*length(unique(metadata_tmp$dataset_name)),
-       height = 5)
-save(fit_discrete, file = paste0(dir_outputChunk, "fit_discrete.RData"))
+# Prediction strength
+```{r prediction strength}
+set.seed(1)
+for(i_distName in c("bray", "jaccard", "jsd")) {
+  for(i_disease in c("IBD", "CD", "UC")) {
+    
+    if(i_disease == "IBD") {
+      tb_metadata_subset <- tb_metadata %>% 
+        dplyr::filter(disease %in% c("CD", "UC"))
+    } else {
+      tb_metadata_subset <- tb_metadata %>% 
+        dplyr::filter(disease %in% i_disease)
+    }
+    tb_metadata_subset <- tb_metadata_subset %>% 
+      dplyr::group_by(dataset_name) %>% 
+      dplyr::filter(dplyr::n() >= 33) %>% 
+      as.data.frame() %>% 
+      set_rownames(.$sample_accession_16S)
+    i_distSubset <- l_dist[[i_distName]] %>% 
+      smar::subset_distance(tb_metadata_subset$sample_accession_16S)
+    
+    fit_discrete <- MMUPHin::discrete.discover(D = i_distSubset,
+                                               batch = "dataset_name",
+                                               data = tb_metadata_subset,
+                                               k.max = k_max, 
+                                               cluster.function = fpc::claraCBI,
+                                               classify.method = "centroid",
+                                               M = M,
+                                               diagnostics = FALSE,
+                                               verbose = FALSE)
+    save(fit_discrete, file = paste0(dir_output, i_distName, "/data/", i_disease, 
+                                     "fit_MMUPHin.RData"))
+    
+    tb_summary <- list(fit_discrete[c("internal.mean", "internal.se")],
+                       fit_discrete[c("external.mean", "external.se")]) %>% 
+      purrr::map2_dfr(c("internal", "external"), 
+                      function(l_results, evaluation) {
+                        l_results %>%
+                          purrr::map2(c("mean", "sd"),
+                                      ~ .x %>% 
+                                        as.data.frame() %>% 
+                                        tibble::rownames_to_column("k") %>% 
+                                        dplyr::mutate(k = as.integer(k)) %>% 
+                                        tidyr::gather(key = "study", value = !!.y, 
+                                                      -k) 
+                          ) %>%
+                          {dplyr::left_join(.[[1]], .[[2]], by = c("k", "study"))} %>% 
+                          dplyr::mutate(evaluation = evaluation)
+                      })
+    p <- tb_summary %>% 
+      readr::write_tsv(paste0(dir_output, i_distName, 
+                              "/results_MMUPHin_", i_disease, ".tsv")) %>% 
+      ggplot(aes(x = k, y = mean, color = evaluation)) +
+      geom_point(position = position_dodge(width = 0.5)) +
+      geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), 
+                    width = 0.5,
+                    position = position_dodge(width = 0.5)) +
+      geom_line(position = position_dodge(width = 0.5)) +
+      scale_color_manual(values = c("internal" = "black",
+                                    "external" = "red")) +
+      facet_grid(.~study, scales = "free_y")
+    ggsave(paste0(dir_output, i_distName, 
+                  "/visualize_MMUPHin_", i_disease, ".pdf"), p,
+           width = 3*length(unique(tb_metadata_subset$dataset_name)), height = 4)
+    }
+}
 ```
