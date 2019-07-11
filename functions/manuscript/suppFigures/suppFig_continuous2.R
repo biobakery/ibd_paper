@@ -59,10 +59,12 @@ p_scores <- metadata %>%
   theme(legend.position = c(1, 0),
         legend.justification = c(1, 0),
         legend.direction = "horizontal",
-        legend.background = element_blank())
+        legend.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
 
 p <- cowplot::plot_grid(p_loading, p_scores, nrow = 1, rel_widths = c(1, 2.2),
-                        align = "h", axis = "tb",
+                        align = "hv", axis = "tb",
                         labels = c("a", "b"),
                         label_fontface = "plain",
                         label_size = 30)

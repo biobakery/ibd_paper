@@ -1,6 +1,7 @@
+load("data/physeq/genera_prefilter.RData")
 suppTable_cohortSummary <- function(phylo,
                                     path = "supp_materials/suppTables/suppTable_cohortSummary.csv") {
-  df_metadata <- sample_data2(phylo) %>% 
+  df_metadata <- smar::sample_data2(phylo) %>% 
     dplyr::left_join(tb_1,
                      by = c("dataset_name" = "study_full_name")) %>% 
     dplyr::group_by(dataset_name) %>% 
@@ -87,3 +88,4 @@ suppTable_cohortSummary <- function(phylo,
   
   return(tb_cohortSummary)
 }
+suppTable_cohortSummary(physeq_genera_prefilter)

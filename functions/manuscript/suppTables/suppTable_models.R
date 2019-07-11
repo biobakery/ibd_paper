@@ -113,3 +113,4 @@ suppTable_models <- function(tb_permanova, l_tests, l_tests_subtype,
   writexl::write_xlsx(l_sheets, path = paste0(path, "suppTable_models.xlsx"), format_headers = FALSE)
   return(l_sheets)
 }
+tb_models <- suppTable_models(tb_permanova, l_tests, l_tests_subtype)
