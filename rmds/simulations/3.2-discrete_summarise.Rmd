@@ -34,8 +34,8 @@ tb_sim <- tb_sim %>%
                   forcats::as_factor() %>% forcats::fct_inseq())
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
-  dplyr::arrange(nSample, nBatch) %>% 
-  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+  dplyr::arrange(nBatch, nSample_perBatch) %>% 
+  dplyr::mutate(nSample_nBatch = paste0("nSample per batch = ", nSample_perBatch, ", ",
                                         "nBatch = ", nBatch) %>% 
                   forcats::as_factor())
 # nMicrobe and percMicrobe spiked
@@ -103,7 +103,7 @@ tb_summary <- tb_results %>%
 # R2 sanity check
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
-colors <- smar::gg_color_hue(n=3)
+colors <- smar::gg_color_hue(n=4)
 colors_simulation_discrete <- c("Original" = "black",
                                 "MMUPHin corrected" = colors[1])
 
@@ -169,7 +169,7 @@ cowplot::plot_grid(plotlist = plist,
                    nrow = 2) %>% 
   ggsave(paste0(dir_output, "summary.pdf"),
          .,
-         width = 20, height = 6)
+         width = 40, height = 6, limitsize = FALSE)
 ```
 ```{r find example case}
 # is <- tb_sim %>% 
