@@ -52,16 +52,6 @@ results <-  foreach::`%dopar%`(
                               data = smar::sample_data2(phylo),
                               permutations = 2)$aov.tab["batch", "R2"]
 
-    fit_lm.meta <- MMUPHin::lm.meta(
-      feature.abd = mat_otu,
-      batch = "batch",
-      exposure = "exposure",
-      data = df_metadata,
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_before/", i, "/"),
-      forest.plots = TRUE,
-      verbose = TRUE)
     fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
       feature.abd = mat_otu,
       data = df_metadata,
@@ -70,8 +60,7 @@ results <-  foreach::`%dopar%`(
       transform = "AST",
       output = paste0(dir_output, "MMUPHin_before/", i, "/all/")
     )
-    return(list(MMUPHin = fit_lm.meta$meta.results,
-                naive = fit_Maaslin2,
+    return(list(naive = fit_Maaslin2,
                 R2 = c("exposure" = R2_exposure,
                        "batch" = R2_batch)))
   }
@@ -128,16 +117,8 @@ results_correct <-  foreach::`%dopar%`(
       output = paste0(dir_output, "MMUPHin_after/", i, "/"),
       forest.plots = FALSE,
       verbose = FALSE)
-    fit_Maaslin2 <- MMUPHin:::Maaslin2.wrapper(
-      feature.abd = mat_otu,
-      data = df_metadata,
-      exposure = "exposure",
-      normalization = "TSS",
-      transform = "AST",
-      output = paste0(dir_output, "MMUPHin_after/", i, "/all/")
-    )
+    
     return(list(MMUPHin = fit_lm.meta$meta.results,
-                naive = fit_Maaslin2,
                 R2 = c("exposure" = R2_exposure,
                        "batch" = R2_batch)))
   }
