@@ -64,43 +64,9 @@ results <- foreach::`%dopar%`(
           prcomp()
     cor.pca <- cor(fit.pca$x[, 1], df_metadata$score, method = "spearman")
 
-    for(cor.cutoff in cutoff) {
-      fit.continuous <- MMUPHin::continuous.discover(feature.abd = mat_otu,
-                                                     batch = "batch",
-                                                     data = df_metadata,
-                                                     normalization = "TSS",
-                                                     transform = "AST",
-                                                     cor.cutoff = cor.cutoff,
-                                                     cluster_function = igraph::cluster_fast_greedy,
-                                                     plot.clustered.network = FALSE,
-                                                     diagnostics = FALSE,
-                                                     verbose = FALSE)
-      if(is.null(fit.continuous)) next
-      if(median(fit.continuous$mat.vali[, 1]) > cor.cutoff) break
-    }
-    if(!is.null(fit.continuous)) {
-      mat_otu_transformed <- levels(df_metadata$batch) %>%
-        purrr::map(function(lvl.batch) {
-          mat_otu[, df_metadata$batch == lvl.batch] %>%
-          apply(2, MMUPHin:::tss) %>%
-            sqrt() %>% asin() %>%
-            t() %>% apply(2, function(x) x - mean(x))
-        }) %>% purrr::reduce(rbind)
-      mat_otu_transformed <- mat_otu_transformed[colnames(mat_otu), ]
-      correlation <- mat_otu_transformed %>%
-        `%*%`(fit.continuous$consensus.loading[, 1]) %>%
-        cor(df_metadata$score, method = "spearman")
-      return(list(R2 = c("batch" = R2_batch,
-                         "score" = R2_score),
-                  cor.pca = cor.pca,
-                  fit.continuous = list(cor.cutoff = cor.cutoff,
-                                        correlation = correlation[1, 1]))
-      )
-    }
     return(list(R2 = c("batch" = R2_batch,
                        "score" = R2_score),
-                cor.pca = cor.pca,
-                fit.continuous = NULL))
+                cor.pca = cor.pca))
   }
 )
 doParallel::stopImplicitCluster()
