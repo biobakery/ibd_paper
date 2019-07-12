@@ -25,7 +25,7 @@ ncores <- 20
 # sample size
 nBatch <- c(2, 4, 6, 8)
 nCluster <- c(3, 4, 5, 6)
-nSample_perBatch <- c(100, 500)
+nSample_perBatch <- 500
 # feature size
 nMicrobe <- c(1000)
 spikeMicrobes <- c(0.2)
