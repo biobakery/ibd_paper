@@ -6,7 +6,7 @@ df_metadata <- i_simSetup$df_metadata[[1]] %>%
   dplyr::transmute(main = as.numeric(as.character(exposure)),
                    confounder = NA_real_,
                    batch = as.numeric(as.character(batch)))
-i <- i_simSetup$i[ii]
+i <- i_simSetup$i
 mat_otu <- read.table(paste0("/n/hutlab11_nobackup/users/syma/ibd_paper/results/simulations/lm.meta/sparseDOSSA_sets/",
                              i, ".tsv"),
                       header = TRUE,
