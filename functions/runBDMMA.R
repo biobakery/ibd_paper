@@ -13,11 +13,11 @@ mat_otu <- read.table(paste0("/n/hutlab11_nobackup/users/syma/ibd_paper/results/
                       sep = "\t",
                       row.names = 1) %>%
   as.matrix()
-# sSet <- SummarizedExperiment::SummarizedExperiment(
-#   assays = list(mat_otu),
-#   colData = df_metadata
-# )
+sSet <- SummarizedExperiment::SummarizedExperiment(
+  assays = list(mat_otu),
+  colData = df_metadata
+)
 # 
 # # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
-# save(sSet, file = paste0("/n/hutlab11_nobackup/users/syma/ibd_paper/results/simulations/lm.meta/BDMMA/",
-#                          i, ".RData"))
+save(sSet, file = paste0("/n/hutlab11_nobackup/users/syma/ibd_paper/results/simulations/lm.meta/BDMMA/",
+                         i, ".RData"))
