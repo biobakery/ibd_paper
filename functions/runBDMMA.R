@@ -8,7 +8,7 @@ ii <- commandArgs(trailingOnly = TRUE) %>% as.integer()
 #                 spikeMicrobes == 0.05)
 # i <- tb_sim_subset$i[ii]
 mat_otu <- read.table(paste0("/n/hutlab11_nobackup/users/syma/ibd_paper/results/simulations/lm.meta/sparseDOSSA_sets/",
-                      i, ".tsv"),
+                      ii, ".tsv"),
                       header = TRUE,
                       sep = "\t",
                       row.names = 1) %>%
