@@ -24,28 +24,29 @@ dir_output <- "results/simulations/lm.meta/"
 load(paste0(dir_output, "tb_sim.RData"))
 load(paste0(dir_output, "evaluate_before.RData"))
 load(paste0(dir_output, "evaluate_after.RData"))
+load(paste0(dir_output, "evaluate_qnorm.RData"))
 ```
 
 ```{r format simulation set up}
 # effect sizes
 tb_sim <- tb_sim %>% 
-  dplyr::mutate(effect_exposure = disparity %>% 
-                  factor(levels = c(0, 0.1, 0.2, 0.3, 0.4)),
+  dplyr::mutate(effect_exposure = imbalance %>% 
+                  forcats::as_factor() %>% forcats::fct_inseq(),
                 effect_batch = effectSize %>%
                   purrr::map_dbl("batch") %>% 
-                  factor(levels = 0:10))
+                  forcats::as_factor() %>% forcats::fct_inseq())
 # nSample and nBatch
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nSample, nBatch) %>% 
-  dplyr::mutate(nSample_nBatch = paste0("nSample = ", nSample, ", ",
+  dplyr::mutate(nSample_nBatch = paste0("nSample per batch = ", nSample_perBatch, ", ",
                                         "nBatch = ", nBatch) %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 # nMicrobe and percMicrobe spiked
 tb_sim <- tb_sim %>% 
   dplyr::arrange(nMicrobe, spikeMicrobes) %>% 
   dplyr::mutate(nMicrobe_percSpike = paste0("nFeature = ", nMicrobe, ", ",
                                             spikeMicrobes*100, "% spiked") %>% 
-                  factor(levels = unique(.)))
+                  forcats::as_factor())
 ```
 
 ```{r summarise results}
@@ -53,7 +54,7 @@ tb_sim <- tb_sim %>%
 # aggregate results into df format
 tb_R2 <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_base),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
         ~ tibble::tibble(Variable = names(.x$R2),
@@ -61,30 +62,48 @@ tb_R2 <- list(results, results_correct) %>%
                          i = .y)
       ) %>% 
       dplyr::mutate(Data = .y)
-    ) 
+  ) 
 # format variables
 tb_R2 <- tb_R2 %>% 
   dplyr::mutate(Variable = factor(Variable, 
                                   levels = c("batch", "exposure")),
-                Data = factor(Data, levels = names(colors_base)))
+                Data = factor(Data, levels = c("Original", "MMUPHin corrected")))
 # lm.meta results
 # aggregate results into df format
 tb_results <- list(results, results_correct) %>% 
   purrr::map2_dfr(
-    names(colors_base),
+    c("Original", "MMUPHin corrected"),
     ~ .x %>% 
       purrr::imap_dfr(
-        ~ tibble::tibble(model = c("MMUPHin", "naive"),
-                         results = .x[c("MMUPHin", "naive")],
-                         i = .y)
-      ) %>% 
+        function(result, i_result) {
+          if(.y == "Original")
+            return(tibble::tibble(model = "naive",
+                           results = result["naive"],
+                           i = i_result))
+          if(.y == "MMUPHin corrected")
+            return(tibble::tibble(model = "MMUPHin",
+                           results = result["MMUPHin"],
+                           i = i_result))
+        }) %>% 
       dplyr::mutate(Data = .y)
   ) 
+tb_results_qnorm <- results_qnorm %>% 
+  purrr::imap_dfr(
+    ~ tibble::tibble(results = list(.x),
+                     i = .y)
+  ) %>% 
+  dplyr::mutate(Data = "Quantile corrected",
+                model = "Wilcoxon")
 # format variables
-tb_results <- tb_results %>% 
-  dplyr::mutate(Data = factor(Data, levels = names(colors_base))) %>% 
+tb_results <- rbind(tb_results, tb_results_qnorm) %>% 
+  dplyr::mutate(Data = factor(Data, levels = c("Original", 
+                                               "Quantile corrected",
+                                               "MMUPHin corrected")),
+                model = factor(model, levels = c("naive", "Wilcoxon", "MMUPHin"))) %>% 
+  dplyr::arrange(Data, model) %>% 
   dplyr::mutate(Class = paste0(Data, ", ", model, " analyzed") %>% 
-                  factor(levels = names(colors_simulation_lm.meta)))
+                  forcats::as_factor())
+
 # calculate FPR
 tb_results <- tb_results %>% 
   dplyr::left_join(tb_sim, by = "i") %>% 
@@ -103,6 +122,10 @@ tb_summary <- tb_results %>%
 # R2 sanity check
 tb_plot <- tb_R2 %>% dplyr::left_join(tb_sim, by = "i") %>% 
   dplyr::filter(!(effect_batch == 0 & Data == "MMUPHin corrected"))
+colors <- smar::gg_color_hue(n=4)
+colors_R2 <- c("Original" = "black",
+               "MMUPHin corrected" = colors[1])
+
 for(i.effect in levels(tb_plot$effect_exposure)) {
   plist <- (1:nlevels(tb_plot$Variable)) %>% 
     purrr::map(function(i) {
@@ -113,7 +136,7 @@ for(i.effect in levels(tb_plot$effect_exposure)) {
         ggplot(aes(x = effect_batch, y = R2, color = Data)) +
         geom_boxplot() +
         facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_adjust.batch) +
+        scale_color_manual(values = colors_R2) +
         theme(legend.position = c(0, 1),
               legend.justification = c(0, 1),
               legend.background = element_blank(),
@@ -134,44 +157,139 @@ for(i.effect in levels(tb_plot$effect_exposure)) {
            .,
            width = 15, height = 15)
 }
-
+colors_simulation_lm.meta <- c("Original, naive analyzed" = "black",
+                               "Quantile corrected, Wilcoxon analyzed" = colors[3],
+                               "MMUPHin corrected, MMUPHin analyzed" = colors[1])
 # summary plot
 tb_plot <- tb_summary %>% 
-  dplyr::filter(!is.na(Class)) %>% 
+  dplyr::filter(Class != "Original, MMUPHin analyzed") %>% 
   dplyr::left_join(dplyr::filter(tb_sim, !duplicated(i_setup)), 
                    by = "i_setup")
 plist <- (1:nlevels(tb_sim$effect_exposure)) %>% 
-    purrr::map(function(i) {
-      i.effect <- levels(tb_sim$effect_exposure)[i]
-      p <- tb_plot %>% 
-        dplyr::filter(effect_exposure == i.effect) %>% 
-        ggplot(aes(x = effect_batch, y = mean_FPR, color = Class)) +
-        geom_point(size = 3, position = position_dodge(width = 1)) +
-        geom_errorbar(aes(ymin = mean_FPR - sd_FPR, ymax = mean_FPR + sd_FPR),
-                      position = position_dodge(width = 1)) +
-        geom_hline(yintercept = 0.05, linetype = "dashed") +
-        facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
-        scale_color_manual(values = colors_simulation_lm.meta) +
-        theme(legend.position = c(1, 1),
-              legend.justification = c(1, 1),
-              legend.background = element_blank(),
-              legend.title = element_blank(),
-              strip.text = element_text(size = 8),
-              legend.text = element_text(size = 8)) +
-        xlab("Batch effect") +
-        ylab("False positive rate") +
-        ggtitle(paste0("Exposure imbalance = ", 
-                       i.effect %>% 
-                         as.numeric %>% 
-                         magrittr::multiply_by(200),
-                       "%"))
-      if(i != 3)
-        p <- p + theme(legend.position = "none")
-      return(p)
-    })
+  purrr::map(function(i) {
+    i.effect <- levels(tb_sim$effect_exposure)[i]
+    p <- tb_plot %>% 
+      dplyr::filter(effect_exposure == i.effect) %>% 
+      ggplot(aes(x = effect_batch, y = mean_FPR, color = Class)) +
+      geom_point(size = 3, position = position_dodge(width = 1)) +
+      geom_errorbar(aes(ymin = mean_FPR - sd_FPR, ymax = mean_FPR + sd_FPR),
+                    position = position_dodge(width = 1)) +
+      geom_hline(yintercept = 0.05, linetype = "dashed") +
+      facet_grid(nMicrobe_percSpike ~ nSample_nBatch) +
+      scale_color_manual(values = colors_simulation_lm.meta) +
+      theme(legend.position = c(1, 1),
+            legend.justification = c(1, 1),
+            legend.background = element_blank(),
+            legend.title = element_blank(),
+            strip.text = element_text(size = 8),
+            legend.text = element_text(size = 8)) +
+      xlab("Batch effect") +
+      ylab("False positive rate") +
+      ggtitle(paste0("Exposure imbalance = ", 
+                     i.effect %>% 
+                       as.numeric %>% 
+                       magrittr::multiply_by(200),
+                     "%"))
+    if(i != 3)
+      p <- p + theme(legend.position = "none")
+    return(p)
+  })
 cowplot::plot_grid(plotlist = plist,
-                     nrow = 2) %>% 
-    ggsave(paste0(dir_output, "summary.pdf"),
-           .,
-           width = 30, height = 30)
+                   nrow = 2) %>% 
+  ggsave(paste0(dir_output, "summary.pdf"),
+         .,
+         width = 30, height = 30)
+```
+
+```{r sanity check}
+dir_outputChunk <- paste0(dir_output, "sanitycheck/")
+dir.create(dir_outputChunk, showWarnings = TRUE, recursive = TRUE)
+tb_sim_check <- tb_sim %>% dplyr::filter(effect_batch %in% c(0, 10), 
+                                         effect_exposure %in% c(0, 0.4),
+                                         nSample == 1000,
+                                         nMicrobe == 200,
+                                         spikeMicrobes == 0.05,
+                                         rep == 1)
+for(ii in tb_sim_check$i) {
+  mat_otu <- read.table(paste0(dir_output,
+                               "sparseDOSSA_sets/",
+                               ii, ".tsv"),
+                        header = TRUE,
+                        sep = "\t",
+                        row.names = 1) %>% 
+    as.matrix
+  i_simSetup <- tb_sim %>% 
+    dplyr::filter(i == ii) %>% 
+    dplyr::slice(1)
+  df_metadata <- i_simSetup$df_metadata[[1]]
+  phylo <- phyloseq::phyloseq(
+    phyloseq::otu_table(mat_otu, taxa_are_rows = TRUE),
+    phyloseq::sample_data(df_metadata)) %>%
+    phyloseq::transform_sample_counts(MMUPHin:::tss) %>%
+    smar::prune_taxaSamples()
+  plist <- smar::phyloseq_to_tb(phylo) %>% 
+    dplyr::left_join(results[[ii]]$naive, by = "feature") %>% 
+    dplyr::left_join(results_qnorm[[ii]], by = "feature") %>% 
+    dplyr::filter(pval.y < 0.05) %>% 
+    dplyr::arrange(feature) %>% 
+    dplyr::group_by(feature) %>% dplyr::group_split() %>% 
+    purrr::map(~ .x %>% 
+                 ggplot(aes(x = batch, y = abundance, color = as.factor(exposure))) +
+                 geom_boxplot(outlier.shape = NA) +
+                 geom_point(position = position_jitterdodge(jitter.width = 0.25)) +
+                 ggtitle(paste0(.x$feature[1], "\n",
+                                "pval = ", format(.x$pval.x[1],
+                                                  digits = 4,
+                                                  scientific = TRUE))) +
+                 theme(legend.position = "none"))
+  D <- phyloseq::distance(phylo, method = "bray")
+  ordinate <- phyloseq::ordinate(phylo, distance = D, method = "MDS")
+  phyloseq::plot_ordination(phylo, ordinate, shape = "batch", color = "exposure") %>% 
+    ggsave(paste0(dir_outputChunk, "ordination_", ii, ".pdf"), ., width = 6, height = 4)
+  mat_otu_qnorm <- read.table(paste0(dir_output, "qnorm/qnormed/", ii, ".tsv"),
+                              skip = 1,
+                              sep = "\t",
+                              comment.char = "",
+                              header = TRUE,
+                              row.names = 1) %>%
+    as.matrix()
+   mat_otu_qnorm <- mat_otu_qnorm[, rownames(df_metadata)]
+  plist_qnorm <- mat_otu_qnorm %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column("feature") %>% 
+    tidyr::gather(key = "rownames", value = "abundance", -feature) %>% 
+    dplyr::left_join(df_metadata %>% tibble::rownames_to_column("rownames"), 
+                     by = "rownames") %>% 
+    dplyr::right_join(results[[ii]]$naive, by = "feature") %>% 
+    dplyr::left_join(results_qnorm[[ii]], by = "feature") %>% 
+    dplyr::filter(pval.y < 0.05) %>% 
+    dplyr::arrange(feature) %>% 
+    dplyr::group_by(feature) %>% dplyr::group_split() %>% 
+    purrr::map(~ .x %>% 
+                 ggplot(aes(x = batch, y = abundance, color = as.factor(exposure))) +
+                 geom_boxplot(outlier.shape = NA) +
+                 geom_point(position = position_jitterdodge(jitter.width = 0.25)) +
+                 ggtitle(paste0(.x$feature[1], "\n",
+                                "pval_Wilcoxon = ", format(.x$pval.y[1],
+                                                           digits = 4,
+                                                           scientific = TRUE))) +
+                 theme(legend.position = "none"))
+  p_plot <- purrr::map2(plist, plist_qnorm, 
+                        ~ cowplot::plot_grid(.x, .y, nrow = 1))
+  pdf(paste0(dir_outputChunk, "boxplot_", ii, ".pdf"),
+      width = 8, height = 4)
+  for(j in 1:length(p_plot))
+    print(p_plot[[j]])
+  dev.off()
+  results[[ii]]$naive %>% 
+    dplyr::left_join(results_qnorm[[ii]], by = "feature") %>% 
+    dplyr::mutate(pval.y.fill = dplyr::case_when(
+      is.na(pval.y) ~ "NA",
+      pval.y < 0.05 ~ "Wilcoxon significant",
+      pval.y >= 0.05 ~ "Wilcoxon IS"
+    )) %>% 
+    {table(.$pval.x < 0.05, .$pval.y.fill)} %>% 
+    as.matrix() %>% 
+    write.table(paste0(dir_outputChunk, "table_", ii, ".tsv"), sep = "\t")
+}
 ```

@@ -15,18 +15,15 @@ output:
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
-rm(list = ls())
-for(i.function in list.files("functions/", full.names = TRUE)) {
-  source(i.function)
-}
-setup(getwd())
+smar::sourceDir("functions/", recursive = FALSE)
+setup("./")
 dir_output <- "results/3.2-overview/"
 dir.create(dir_output, recursive = TRUE, showWarnings = FALSE)
 ```
 
 # A whole bunch of ordination
 ```{r overview}
-load("data/phyloseq/genera.RData")
+load("data/physeq/genera.RData")
 distance_to_ordinate <- "bray"
 for(feature_level in c("genera", "species")) {
   dir_output_tmp <- paste0(dir_output, feature_level, "/")
