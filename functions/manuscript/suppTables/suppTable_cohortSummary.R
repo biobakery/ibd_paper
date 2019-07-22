@@ -1,6 +1,6 @@
 load("data/physeq/genera_prefilter.RData")
 suppTable_cohortSummary <- function(phylo,
-                                    path = "supp_materials/suppTables/suppTable_cohortSummary.csv") {
+                                    path = "supp_materials/suppTables/suppTable_cohortSummary.xlsx") {
   df_metadata <- smar::sample_data2(phylo) %>% 
     dplyr::left_join(tb_1,
                      by = c("dataset_name" = "study_full_name")) %>% 
@@ -11,11 +11,10 @@ suppTable_cohortSummary <- function(phylo,
     dplyr::ungroup()
   
   template <- readr::read_csv("../ibd_meta_analysis/data/template.csv")
-  variables_toSummarise <- c("control",
+  variables_toSummarise <- c("control", "body_site",
                              "L.cat", "E.cat", "B.cat", "perianal",
                              "age_at_diagnosis", "age_at_diagnosis.cat",
-                             "race", "gender", "BMI", "alcohol", "smoke",
-                             "calprotectin", "PCDAI",
+                             "race",
                              "antibiotics", "immunosuppressants", "steroids", 
                              "mesalamine_5ASA")
   template_subset <- template %>% 
@@ -65,26 +64,21 @@ suppTable_cohortSummary <- function(phylo,
                      by = c("dataset_name" = "study_full_name")) %>% 
     dplyr::select(Study,
                   Control = control,
+                  `Biopsy location` = body_site,
                   `CD Montreal Location` = L.cat,
                   `CD Montreal Behavior` = B.cat,
                   `CD perianal` = perianal,
                   `Age at diagnosis` = age_at_diagnosis,
                   `Age at diagnosis Montreal classification` = age_at_diagnosis,
                   Race = race,
-                  Gender = gender,
-                  BMI = BMI,
-                  Alcohol = alcohol,
-                  Smoke = smoke,
-                  `Fecal calprotectin` = calprotectin,
-                  PDAI = PCDAI,
                   Antibiotics = antibiotics,
                   Immunosuppressants = immunosuppressants,
                   Steroids = steroids,
                   `Mesalamine/5ASA` = mesalamine_5ASA,
                   `% samples > 3000 read depth` = perc_3000)
   if(!is.null(path))
-    readr::write_csv(tb_cohortSummary, 
-                     path)
+    writexl::write_xlsx(tb_cohortSummary, 
+                        path)
   
   return(tb_cohortSummary)
 }
