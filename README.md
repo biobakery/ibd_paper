@@ -1,0 +1,4 @@
+|Siyuan Ma, Dmitry Shungin, Himel Mallick, Melanie Schirmer, Long Nguyen, Raivo Kolde, Eric Franzosa, Hera Vlamakis, Ramnik Xavier, Curtis Huttenhower *Population Structure Discovery in Meta-Analyzed Microbial Communities and Inflammatory Bowel Disease.*|
+|---|
+
+This is the analysis repository for the IBD meta-analysis project. Analysis scripts are ordered, by the sequence of tasks performed, in `rmds/`. `functions/` contains helper functions as well as scripts to generate display items of the paper. `assets/` has additional constants, among which Table 1, i.e., additional metadata of the studies, is included.
