@@ -2,9 +2,7 @@
 title: "Run BDMMA on a subset of scenarios"
 author: "Siyuan Ma"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output:
-  html_document:
-  df_print: paged
+output: html_document
 ---
 ```{r setup, echo = FALSE}                                           
 knitr::opts_knit$set(root.dir = normalizePath("../../"))
