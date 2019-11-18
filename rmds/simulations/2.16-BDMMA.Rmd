@@ -1,0 +1,73 @@
+---
+title: "Run BDMMA on a subset of scenarios"
+author: "Siyuan Ma"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+  df_print: paged
+---
+```{r setup, echo = FALSE}                                           
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+```
+```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
+smar::sourceDir("functions/", recursive = FALSE)
+smar::sourceDir("functions/simulations/", recursive = FALSE)
+setup("./")
+dir_output <- "results/simulations/lm.meta/"
+dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
+dir.create(paste0(dir_output, "BDMMA/"), recursive = TRUE, showWarnings = TRUE)
+```
+
+```{r load data}
+ncores <- 32
+load(paste0(dir_output, "tb_sim.RData"))
+```
+```{r evaluate runtime}
+tb_sim_subset <- tb_sim %>% 
+  dplyr::filter(nSample_perBatch == 100,
+                nMicrobe == 200,
+                spikeMicrobes == 0.05)
+
+start.time <- Sys.time()
+doParallel::registerDoParallel(ncores)
+results_BDMMA <-  foreach::`%dopar%`(
+  foreach::foreach(i = tb_sim_subset$i[1:32]),
+  {
+    Sys.sleep(1)
+    # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
+    #     append = TRUE)
+    # mat_otu <- read.table(paste0(dir_output,
+    #                              "sparseDOSSA_sets/",
+    #                              i, ".tsv"),
+    #                       header = TRUE,
+    #                       sep = "\t",
+    #                       row.names = 1) %>% 
+    #   as.matrix()
+    # i_simSetup <- tb_sim[i, ]
+    # df_metadata <- i_simSetup$df_metadata[[1]] %>% 
+    #   dplyr::transmute(main = as.numeric(as.character(exposure)),
+    #                    confounder = NA_real_,
+    #                    batch = as.numeric(as.character(batch)))
+    # 
+    # sSet <- SummarizedExperiment::SummarizedExperiment(
+    #   assays = list(mat_otu),
+    #   colData = df_metadata
+    # )
+    # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+    # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"), 
+    #             sep = "\t")
+    # return(fit.BDMMA[-1])
+  }
+) 
+doParallel::stopImplicitCluster()
+# save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
+print(Sys.time() - start.time)
+
+start.time <- Sys.time()
+for(i in tb_sim_subset$i[1:32])
+{
+  Sys.sleep(1)
+}
+# save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
+print(Sys.time() - start.time)
+```
