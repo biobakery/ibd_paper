@@ -28,40 +28,40 @@ tb_sim_subset <- tb_sim %>%
                 nMicrobe == 200,
                 spikeMicrobes == 0.05)
 
-start.time <- Sys.time()
-doParallel::registerDoParallel(ncores)
-results_BDMMA <-  foreach::`%dopar%`(
-  foreach::foreach(i = tb_sim_subset$i[1:32]),
-  {
-    Sys.sleep(1)
-    # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
-    #     append = TRUE)
-    # mat_otu <- read.table(paste0(dir_output,
-    #                              "sparseDOSSA_sets/",
-    #                              i, ".tsv"),
-    #                       header = TRUE,
-    #                       sep = "\t",
-    #                       row.names = 1) %>% 
-    #   as.matrix()
-    # i_simSetup <- tb_sim[i, ]
-    # df_metadata <- i_simSetup$df_metadata[[1]] %>% 
-    #   dplyr::transmute(main = as.numeric(as.character(exposure)),
-    #                    confounder = NA_real_,
-    #                    batch = as.numeric(as.character(batch)))
-    # 
-    # sSet <- SummarizedExperiment::SummarizedExperiment(
-    #   assays = list(mat_otu),
-    #   colData = df_metadata
-    # )
-    # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
-    # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"), 
-    #             sep = "\t")
-    # return(fit.BDMMA[-1])
-  }
-) 
-doParallel::stopImplicitCluster()
-# save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
-print(Sys.time() - start.time)
+# start.time <- Sys.time()
+# doParallel::registerDoParallel(ncores)
+# results_BDMMA <-  foreach::`%dopar%`(
+#   foreach::foreach(i = tb_sim_subset$i[1:32]),
+#   {
+#     Sys.sleep(1)
+#     # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_progress.txt"), 
+#     #     append = TRUE)
+#     # mat_otu <- read.table(paste0(dir_output,
+#     #                              "sparseDOSSA_sets/",
+#     #                              i, ".tsv"),
+#     #                       header = TRUE,
+#     #                       sep = "\t",
+#     #                       row.names = 1) %>% 
+#     #   as.matrix()
+#     # i_simSetup <- tb_sim[i, ]
+#     # df_metadata <- i_simSetup$df_metadata[[1]] %>% 
+#     #   dplyr::transmute(main = as.numeric(as.character(exposure)),
+#     #                    confounder = NA_real_,
+#     #                    batch = as.numeric(as.character(batch)))
+#     # 
+#     # sSet <- SummarizedExperiment::SummarizedExperiment(
+#     #   assays = list(mat_otu),
+#     #   colData = df_metadata
+#     # )
+#     # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+#     # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"), 
+#     #             sep = "\t")
+#     # return(fit.BDMMA[-1])
+#   }
+# ) 
+# doParallel::stopImplicitCluster()
+# # save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
+# print(Sys.time() - start.time)
 
 start.time <- Sys.time()
 for(i in tb_sim_subset$i[1:32])
