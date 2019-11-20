@@ -10,7 +10,7 @@ knitr::opts_knit$set(root.dir = normalizePath("../../"))
 ```{r setup2, message=FALSE, warning=FALSE, echo = FALSE}
 smar::sourceDir("functions/", recursive = FALSE)
 smar::sourceDir("functions/simulations/", recursive = FALSE)
-# setup("./")
+setup("./")
 dir_output <- "results/simulations/lm.meta/"
 dir.create(dir_output, recursive = TRUE, showWarnings = TRUE)
 dir.create(paste0(dir_output, "BDMMA/"), recursive = TRUE, showWarnings = TRUE)
