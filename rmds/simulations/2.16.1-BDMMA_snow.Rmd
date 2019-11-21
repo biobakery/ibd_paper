@@ -28,38 +28,38 @@ tb_sim_subset <- tb_sim %>%
 
 start.time <- Sys.time()
 print(Rmpi::mpi.universe.size())
-# cl <- snow::makeMPIcluster(ncores)
-# # results_BDMMA <-  snow::parLapply(
-# #   cl,
-# #   x = tb_sim_subset$i[seq_len(ncores)],
-# #   function(i) {
-# #     # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_snow_progress.txt"),
-# #     #     append = TRUE)
-# #     # mat_otu <- read.table(paste0(dir_output,
-# #     #                              "sparseDOSSA_sets/",
-# #     #                              i, ".tsv"),
-# #     #                       header = TRUE,
-# #     #                       sep = "\t",
-# #     #                       row.names = 1) %>%
-# #     #   as.matrix()
-# #     # i_simSetup <- tb_sim[i, ]
-# #     # df_metadata <- i_simSetup$df_metadata[[1]] %>%
-# #     #   dplyr::transmute(main = as.numeric(as.character(exposure)),
-# #     #                    confounder = NA_real_,
-# #     #                    batch = as.numeric(as.character(batch)))
-# #     #
-# #     # sSet <- SummarizedExperiment::SummarizedExperiment(
-# #     #   assays = list(mat_otu),
-# #     #   colData = df_metadata
-# #     # )
-# #     # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
-# #     # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"),
-# #     #             sep = "\t")
-# #     # return(fit.BDMMA[-1])
-# #     Sys.sleep(1)
-# #   })
+cl <- snow::makeMPIcluster(ncores)
+# results_BDMMA <-  snow::parLapply(
+#   cl,
+#   x = tb_sim_subset$i[seq_len(ncores)],
+#   function(i) {
+#     # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_snow_progress.txt"),
+#     #     append = TRUE)
+#     # mat_otu <- read.table(paste0(dir_output,
+#     #                              "sparseDOSSA_sets/",
+#     #                              i, ".tsv"),
+#     #                       header = TRUE,
+#     #                       sep = "\t",
+#     #                       row.names = 1) %>%
+#     #   as.matrix()
+#     # i_simSetup <- tb_sim[i, ]
+#     # df_metadata <- i_simSetup$df_metadata[[1]] %>%
+#     #   dplyr::transmute(main = as.numeric(as.character(exposure)),
+#     #                    confounder = NA_real_,
+#     #                    batch = as.numeric(as.character(batch)))
+#     #
+#     # sSet <- SummarizedExperiment::SummarizedExperiment(
+#     #   assays = list(mat_otu),
+#     #   colData = df_metadata
+#     # )
+#     # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+#     # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"),
+#     #             sep = "\t")
+#     # return(fit.BDMMA[-1])
+#     Sys.sleep(1)
+#   })
 # snow::stopCluster(cl)
-Rmpi::mpi.exit()
+# Rmpi::mpi.exit()
 # # save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
 # print(Sys.time() - start.time)
 # 
