@@ -28,7 +28,9 @@ tb_sim_subset <- tb_sim %>%
 start.time <- Sys.time()
 results_BDMMA <-  Rmpi::mpi.parLapply(
   tb_sim_subset$i,
-  function(i) {
+  function(i,
+           dir_output,
+           tb_sim) {
     library(magrittr)
     mat_otu <- read.table(paste0(dir_output,
                                  "sparseDOSSA_sets/",
@@ -52,7 +54,9 @@ results_BDMMA <-  Rmpi::mpi.parLapply(
     #             sep = "\t")
     # return(fit.BDMMA[-1])
     return(i)
-  })
+  },
+  dir_output = dir_output,
+  tb_sim = tb_sim)
 Rmpi::mpi.close.Rslaves()
 save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
 print(Sys.time() - start.time)
