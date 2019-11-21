@@ -53,7 +53,7 @@ results_BDMMA <-  Rmpi::mpi.parLapply(
     # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"),
     #             sep = "\t")
     # return(fit.BDMMA[-1])
-    return(i)
+    return(getwd())
   },
   dir_output = dir_output,
   tb_sim = tb_sim)
