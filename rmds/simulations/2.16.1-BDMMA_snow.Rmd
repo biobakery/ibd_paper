@@ -27,7 +27,7 @@ tb_sim_subset <- tb_sim %>%
                 spikeMicrobes == 0.05)
 
 start.time <- Sys.time()
-results_BDMMA <-  Rmpi::mpi.parApply(
+results_BDMMA <-  Rmpi::mpi.parLapply(
   tb_sim_subset$i[seq_len(ncores)],
   function(i) {
     # cat(i, "\n", file = paste0(dir_output, "evaluate_BDMMA_snow_progress.txt"),
