@@ -28,7 +28,7 @@ tb_sim_subset <- tb_sim %>%
 
 start.time <- Sys.time()
 print(Rmpi::mpi.universe.size())
-cl <- snow::makeMPIcluster(ncores)
+# cl <- snow::makeMPIcluster(ncores)
 # results_BDMMA <-  snow::parLapply(
 #   cl,
 #   x = tb_sim_subset$i[seq_len(ncores)],
