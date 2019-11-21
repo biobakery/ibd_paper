@@ -28,7 +28,7 @@ tb_sim_subset <- tb_sim %>%
 
 start.time <- Sys.time()
 print(Rmpi::mpi.universe.size())
-# cl <- snow::makeMPIcluster(ncores)
+cl <- snow::makeMPIcluster(ncores)
 # results_BDMMA <-  snow::parLapply(
 #   cl,
 #   x = tb_sim_subset$i[seq_len(ncores)],
@@ -58,7 +58,8 @@ print(Rmpi::mpi.universe.size())
 #     # return(fit.BDMMA[-1])
 #     Sys.sleep(1)
 #   })
-# snow::stopCluster(cl)
+snow::stopCluster(cl)
+Rmpi::mpi.exit()
 # # save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
 # print(Sys.time() - start.time)
 # 
