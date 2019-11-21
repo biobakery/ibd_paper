@@ -45,15 +45,18 @@ results_BDMMA <-  Rmpi::mpi.parLapply(
       dplyr::transmute(main = as.numeric(as.character(exposure)),
                        confounder = NA_real_,
                        batch = as.numeric(as.character(batch)))
-
+    
     sSet <- SummarizedExperiment::SummarizedExperiment(
       assays = list(mat_otu),
       colData = df_metadata
     )
-    # fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
-    # write.table(fit.BDMMA[[1]], paste0(dir_output, "BDMMA/", i, ".tsv"),
-    #             sep = "\t")
-    # return(fit.BDMMA[-1])
+    fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+    write.table(fit.BDMMA[[1]], 
+                paste0("../../", 
+                       dir_output, 
+                       "BDMMA/", i, ".tsv"),
+                sep = "\t")
+    return(fit.BDMMA[-1])
     return(i)
   },
   dir_output = dir_output,
