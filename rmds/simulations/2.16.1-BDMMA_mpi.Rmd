@@ -27,7 +27,7 @@ tb_sim_subset <- tb_sim %>%
 
 start.time <- Sys.time()
 results_BDMMA <-  Rmpi::mpi.parLapply(
-  tb_sim_subset$i[1:5],
+  tb_sim_subset$i,
   function(i,
            dir_output,
            tb_sim) {
