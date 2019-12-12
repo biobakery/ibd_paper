@@ -2,6 +2,7 @@ load("results/simulations/lm.meta/tb_sim.RData")
 load("results/simulations/lm.meta/evaluate_before.RData")
 load("results/simulations/lm.meta/evaluate_after.RData")
 load("results/simulations/lm.meta/evaluate_qnorm.RData")
+load("results/simulations/lm.meta/evaluate_BDMMA.RData")
 
 load("results/simulations/lm.meta/time_MMUPHin.RData")
 load("results/simulations/lm.meta/time_BDMMA.RData")
@@ -22,10 +23,11 @@ tb_time <- rbind(
 ) %>% 
   dplyr::mutate(Class = Class %>% forcats::as_factor())
 
-suppFig_simulation_lm <- function(tb_sim, 
-                                  evaluate_before, evaluate_after, 
-                                  evaluate_qnorm, tb_time,
-                                  path = "supp_materials/suppFigures/suppFig_simulation_lm.pdf") {
+suppFig_simulation_lm <- function(
+  tb_sim, 
+  evaluate_before, evaluate_after, 
+  evaluate_qnorm, tb_time,
+  path = "supp_materials/suppFigures/suppFig_simulation_lm.pdf") {
   # Format results
   # effect sizes
   tb_sim <- tb_sim %>% 
@@ -72,19 +74,36 @@ suppFig_simulation_lm <- function(tb_sim,
     ) %>% 
     dplyr::mutate(Data = "Quantile corrected",
                   model = "Wilcoxon")
+  # format BDMMA results so can be evaluated same as other methods
+  tb_sim_subset <- tb_sim %>%
+    dplyr::filter(nSample_perBatch == 100,
+                  nMicrobe == 200,
+                  spikeMicrobes == 0.05)
+  tb_results_BDMMA <- results_BDMMA %>% 
+    purrr::map2_dfr(tb_sim_subset$i,
+                    ~ tibble::tibble(
+                      results = list(
+                        .x$parameter_summary %>% 
+                          tibble::rownames_to_column("name") %>% 
+                          dplyr::filter(
+                            stringr::str_detect(name,
+                                                stringr::fixed("L_"))
+                          ) %>%
+                          dplyr::mutate(pval = ifelse(mean > 0.5,
+                                                      0, 
+                                                      1))
+                          ),
+                      i = .y)) %>% 
+    dplyr::mutate(Data = "Original",
+                  model = "BDMMA")
+  
   # format variables
-  tb_results <- rbind(tb_results, tb_results_qnorm) %>% 
-    dplyr::mutate(Data = factor(Data, levels = c("Original", 
-                                                 "Quantile corrected",
-                                                 "MMUPHin corrected")),
-                  model = factor(model, levels = c("naive", "Wilcoxon", "MMUPHin"))) %>% 
-    dplyr::arrange(Data, model) %>% 
-    dplyr::mutate(Class = paste0(Data, ", ", model, " analyzed") %>% 
-                    dplyr::recode("Original, naive analyzed" = "Naive model",
-                                  "Quantile corrected, Wilcoxon analyzed" = "Quantile normalization",
-                                  "BDMMA" = "BDMMA",
-                                  "MMUPHin corrected, MMUPHin analyzed" = "MMUPHin") %>% 
-                    forcats::as_factor())
+  tb_results <- rbind(tb_results, tb_results_qnorm, tb_results_BDMMA) %>% 
+    dplyr::mutate(Class = paste0(Data, ", ", model) %>% 
+                    dplyr::recode_factor("Original, naive" = "Naive model",
+                                  "Quantile corrected, Wilcoxon" = "Quantile normalization",
+                                  "Original, BDMMA" = "BDMMA",
+                                  "MMUPHin corrected, MMUPHin" = "MMUPHin"))
   
   # calculate FPR
   tb_results <- tb_results %>% 
