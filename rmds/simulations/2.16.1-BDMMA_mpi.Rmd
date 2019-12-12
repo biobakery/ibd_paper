@@ -69,6 +69,8 @@ load(paste0(dir_output, "tb_sim.RData"))
 dir.create(paste0(dir_output, "BDMMA/poscontrol/"), 
            recursive = TRUE, showWarnings = TRUE)
 tb_sim_subset <- tb_sim %>%
+  dplyr::mutate(effect_batch = effectSize %>% 
+                  purrr::map_dbl("batch")) %>% 
   dplyr::filter(nSample_perBatch == 100,
                 nMicrobe == 200,
                 spikeMicrobes == 0.05,
