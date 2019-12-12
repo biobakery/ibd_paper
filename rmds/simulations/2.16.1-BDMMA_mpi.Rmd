@@ -20,13 +20,63 @@ dir.create(paste0(dir_output, "BDMMA/"), recursive = TRUE, showWarnings = TRUE)
 load(paste0(dir_output, "tb_sim.RData"))
 ```
 ```{r evaluate BDMMA}
+# tb_sim_subset <- tb_sim %>%
+#   dplyr::filter(nSample_perBatch == 100,
+#                 nMicrobe == 200,
+#                 spikeMicrobes == 0.05)
+# 
+# start.time <- Sys.time()
+# results_BDMMA <-  Rmpi::mpi.parLapply(
+#   tb_sim_subset$i,
+#   function(i,
+#            dir_output,
+#            tb_sim) {
+#     library(magrittr)
+#     mat_otu <- read.table(paste0("../../",
+#                                  dir_output,
+#                                  "sparseDOSSA_sets/",
+#                                  i, ".tsv"),
+#                           header = TRUE,
+#                           sep = "\t",
+#                           row.names = 1) %>%
+#       as.matrix()
+#     i_simSetup <- tb_sim[i, ]
+#     df_metadata <- i_simSetup$df_metadata[[1]] %>%
+#       dplyr::transmute(main = as.numeric(as.character(exposure)),
+#                        confounder = NA_real_,
+#                        batch = as.numeric(as.character(batch)))
+#     
+#     sSet <- SummarizedExperiment::SummarizedExperiment(
+#       assays = list(mat_otu),
+#       colData = df_metadata
+#     )
+#     fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+#     write.table(fit.BDMMA[[1]], 
+#                 paste0("../../", 
+#                        dir_output, 
+#                        "BDMMA/", i, ".tsv"),
+#                 sep = "\t")
+#     return(fit.BDMMA[-1])
+#   },
+#   dir_output = dir_output,
+#   tb_sim = tb_sim)
+# Rmpi::mpi.close.Rslaves()
+# save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
+# print(Sys.time() - start.time)
+```
+
+```{r positive control}
+dir.create(paste0(dir_output, "BDMMA/poscontrol/"), 
+           recursive = TRUE, showWarnings = TRUE)
 tb_sim_subset <- tb_sim %>%
   dplyr::filter(nSample_perBatch == 100,
                 nMicrobe == 200,
-                spikeMicrobes == 0.05)
+                spikeMicrobes == 0.05,
+                imbalance == 0,
+                effect_batch %in% c(0, 1, 5, 10))
 
 start.time <- Sys.time()
-results_BDMMA <-  Rmpi::mpi.parLapply(
+results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
   tb_sim_subset$i,
   function(i,
            dir_output,
@@ -42,9 +92,11 @@ results_BDMMA <-  Rmpi::mpi.parLapply(
       as.matrix()
     i_simSetup <- tb_sim[i, ]
     df_metadata <- i_simSetup$df_metadata[[1]] %>%
-      dplyr::transmute(main = as.numeric(as.character(exposure)),
+      dplyr::transmute(main = as.numeric(as.character(batch)),
                        confounder = NA_real_,
-                       batch = as.numeric(as.character(batch)))
+                       batch = rbinom(n = dplyr::n(),
+                                      size = 1,
+                                      prob = 0.5))
     
     sSet <- SummarizedExperiment::SummarizedExperiment(
       assays = list(mat_otu),
@@ -54,13 +106,14 @@ results_BDMMA <-  Rmpi::mpi.parLapply(
     write.table(fit.BDMMA[[1]], 
                 paste0("../../", 
                        dir_output, 
-                       "BDMMA/", i, ".tsv"),
+                       "BDMMA/poscontrol/", i, ".tsv"),
                 sep = "\t")
     return(fit.BDMMA[-1])
   },
   dir_output = dir_output,
   tb_sim = tb_sim)
 Rmpi::mpi.close.Rslaves()
-save(results_BDMMA, file = paste0(dir_output, "evaluate_BDMMA.RData"))
+save(results_BDMMA_poscontrol, 
+     file = paste0(dir_output, "evaluate_BDMMA_poscontrol.RData"))
 print(Sys.time() - start.time)
 ```
