@@ -8,7 +8,7 @@
 attic
 data
 results
-figures
+./figures/*
 tables
 supp_materials
 .Rproj.user
