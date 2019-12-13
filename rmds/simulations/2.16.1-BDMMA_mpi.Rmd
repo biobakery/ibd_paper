@@ -95,7 +95,7 @@ results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
     i_simSetup <- tb_sim[i, ]
     df_metadata <- i_simSetup$df_metadata[[1]] %>%
       dplyr::transmute(main = as.numeric(as.character(batch)),
-                       confounder = NA_real_,
+                       confounder = rnorm(n = dplyr::n()),
                        batch = rbinom(n = dplyr::n(),
                                       size = 1,
                                       prob = 0.5))
