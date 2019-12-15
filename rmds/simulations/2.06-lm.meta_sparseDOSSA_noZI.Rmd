@@ -42,7 +42,7 @@ rep <- 1:20
 fDummyData <- TRUE
 direction <- TRUE
 # additional setup
-noZeroInflate <- TRUE
+noZeroInflate <- FALSE
 
 tb_simSetup <- tidyr::crossing(
   nBatch,
@@ -93,7 +93,7 @@ l_sparseDOSSA <- foreach::`%dopar%`(
       number_samples = i_simSetup$nSample,
       UserMetadata = UserMetadata,
       spikein.mt = format_spikein.mt(i_simSetup$spikein.mt[[1]]),
-      noZeroInflate = i_simSetup$noZeroInflate,
+      noZeroInflate = TRUE,
       percent_spiked = i_simSetup$spikeMicrobes,
       seed = i_simSetup$i,
       minLevelPercent = 0,
