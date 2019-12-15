@@ -121,7 +121,7 @@ tb_sim_subset <- tb_sim %>%
 dir.create(paste0(dir_output, "BDMMA/poscontrol_noZI/"), 
            recursive = TRUE, showWarnings = TRUE)
 start.time <- Sys.time()
-results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
+results_BDMMA_poscontrol_noZI <-  Rmpi::mpi.parLapply(
   tb_sim_subset$i,
   function(i,
            dir_output,
@@ -158,7 +158,50 @@ results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
   dir_output = dir_output,
   tb_sim = tb_sim)
 Rmpi::mpi.close.Rslaves()
-save(results_BDMMA_poscontrol, 
+save(results_BDMMA_poscontrol_noZI, 
      file = paste0(dir_output, "evaluate_BDMMA_poscontrol_noZI.RData"))
+print(Sys.time() - start.time)
+
+dir.create(paste0(dir_output, "BDMMA/noZI/"), 
+           recursive = TRUE, showWarnings = TRUE)
+start.time <- Sys.time()
+results_BDMMA_noZI <-  Rmpi::mpi.parLapply(
+  tb_sim_subset$i,
+  function(i,
+           dir_output,
+           tb_sim) {
+    library(magrittr)
+    mat_otu <- read.table(paste0("../../",
+                                 dir_output,
+                                 "BDMMA/sparseDOSSA_sets/",
+                                 i, ".tsv"),
+                          header = TRUE,
+                          sep = "\t",
+                          row.names = 1) %>%
+      as.matrix()
+    i_simSetup <- tb_sim[i, ]
+    df_metadata <- i_simSetup$df_metadata[[1]] %>%
+      dplyr::transmute(main = as.numeric(as.character(exposure)),
+                       confounder = NA_real_,
+                       batch = as.numeric(as.character(batch)))
+
+    
+    sSet <- SummarizedExperiment::SummarizedExperiment(
+      assays = list(mat_otu),
+      colData = df_metadata
+    )
+    fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+    write.table(fit.BDMMA[[1]], 
+                paste0("../../", 
+                       dir_output, 
+                       "BDMMA/noZI/", i, ".tsv"),
+                sep = "\t")
+    return(fit.BDMMA[-1])
+  },
+  dir_output = dir_output,
+  tb_sim = tb_sim)
+Rmpi::mpi.close.Rslaves()
+save(results_BDMMA_noZI, 
+     file = paste0(dir_output, "evaluate_BDMMA_noZI.RData"))
 print(Sys.time() - start.time)
 ```
