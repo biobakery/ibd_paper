@@ -60,33 +60,11 @@ tb_simSetup <- tidyr::crossing(
 ```
 
 ```{r simulate metadata}
-set.seed(1)
-tb_sim <- tb_simSetup %>% 
-  dplyr::group_by(i) %>% 
-  dplyr::mutate(
-    df_metadata = 
-      create_imbalancedBatches(nSample_perBatch = nSample_perBatch,
-                               nBatch = nBatch,
-                               imbalance = imbalance) %>% 
-      list(),
-    spikein.mt = 
-      create_effectSize(effectSize = effectSize[[1]],
-                        df_metadata = df_metadata[[1]][, "batch", drop = FALSE],
-                        metadata_type = metadata_type,
-                        fDummyData = fDummyData) %>% 
-      create_spikein.mt(number_features = nMicrobe,
-                        percent_spiked = spikeMicrobes,
-                        effectSize = .,
-                        direction = direction,
-                        seed = i) %>%
-      list()) %>% 
-  dplyr::ungroup()
-save(tb_sim, file = paste0(dir_output, "tb_sim.RData"))
+load(paste0(dir_output, "tb_sim.RData"))
 ```
 
 ```{r run sparseDOSSA}
 set.seed(1)
-N <- nrow(tb_sim)
 tb_sim_subset <- tb_sim %>%
   dplyr::mutate(effect_batch = effectSize %>% 
                   purrr::map_dbl("batch")) %>% 
