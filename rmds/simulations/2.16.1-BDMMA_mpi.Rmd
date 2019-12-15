@@ -66,8 +66,6 @@ load(paste0(dir_output, "tb_sim.RData"))
 ```
 
 ```{r positive control}
-dir.create(paste0(dir_output, "BDMMA/poscontrol/"), 
-           recursive = TRUE, showWarnings = TRUE)
 tb_sim_subset <- tb_sim %>%
   dplyr::mutate(effect_batch = effectSize %>% 
                   purrr::map_dbl("batch")) %>% 
@@ -76,7 +74,52 @@ tb_sim_subset <- tb_sim %>%
                 spikeMicrobes == 0.05,
                 imbalance == 0,
                 effect_batch %in% c(0, 1, 5, 10))
+# dir.create(paste0(dir_output, "BDMMA/poscontrol/"), 
+#            recursive = TRUE, showWarnings = TRUE)
+# start.time <- Sys.time()
+# results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
+#   tb_sim_subset$i,
+#   function(i,
+#            dir_output,
+#            tb_sim) {
+#     library(magrittr)
+#     mat_otu <- read.table(paste0("../../",
+#                                  dir_output,
+#                                  "sparseDOSSA_sets/",
+#                                  i, ".tsv"),
+#                           header = TRUE,
+#                           sep = "\t",
+#                           row.names = 1) %>%
+#       as.matrix()
+#     i_simSetup <- tb_sim[i, ]
+#     df_metadata <- i_simSetup$df_metadata[[1]] %>%
+#       dplyr::transmute(main = as.numeric(as.character(batch)),
+#                        confounder = rnorm(n = dplyr::n()),
+#                        batch = rbinom(n = dplyr::n(),
+#                                       size = 1,
+#                                       prob = 0.5))
+#     
+#     sSet <- SummarizedExperiment::SummarizedExperiment(
+#       assays = list(mat_otu),
+#       colData = df_metadata
+#     )
+#     fit.BDMMA <- BDMMAcorrect::BDMMA(Microbiome_dat = sSet)
+#     write.table(fit.BDMMA[[1]], 
+#                 paste0("../../", 
+#                        dir_output, 
+#                        "BDMMA/poscontrol/", i, ".tsv"),
+#                 sep = "\t")
+#     return(fit.BDMMA[-1])
+#   },
+#   dir_output = dir_output,
+#   tb_sim = tb_sim)
+# Rmpi::mpi.close.Rslaves()
+# save(results_BDMMA_poscontrol, 
+#      file = paste0(dir_output, "evaluate_BDMMA_poscontrol.RData"))
+# print(Sys.time() - start.time)
 
+dir.create(paste0(dir_output, "BDMMA/poscontrol_noZI/"), 
+           recursive = TRUE, showWarnings = TRUE)
 start.time <- Sys.time()
 results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
   tb_sim_subset$i,
@@ -86,7 +129,7 @@ results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
     library(magrittr)
     mat_otu <- read.table(paste0("../../",
                                  dir_output,
-                                 "sparseDOSSA_sets/",
+                                 "BDMMA/sparseDOSSA_sets/",
                                  i, ".tsv"),
                           header = TRUE,
                           sep = "\t",
@@ -108,7 +151,7 @@ results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
     write.table(fit.BDMMA[[1]], 
                 paste0("../../", 
                        dir_output, 
-                       "BDMMA/poscontrol/", i, ".tsv"),
+                       "BDMMA/poscontrol_noZI/", i, ".tsv"),
                 sep = "\t")
     return(fit.BDMMA[-1])
   },
@@ -116,6 +159,6 @@ results_BDMMA_poscontrol <-  Rmpi::mpi.parLapply(
   tb_sim = tb_sim)
 Rmpi::mpi.close.Rslaves()
 save(results_BDMMA_poscontrol, 
-     file = paste0(dir_output, "evaluate_BDMMA_poscontrol.RData"))
+     file = paste0(dir_output, "evaluate_BDMMA_poscontrol_noZI.RData"))
 print(Sys.time() - start.time)
 ```
