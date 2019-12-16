@@ -157,7 +157,6 @@ results_BDMMA_poscontrol_noZI <-  Rmpi::mpi.parLapply(
   },
   dir_output = dir_output,
   tb_sim = tb_sim)
-Rmpi::mpi.close.Rslaves()
 save(results_BDMMA_poscontrol_noZI, 
      file = paste0(dir_output, "evaluate_BDMMA_poscontrol_noZI.RData"))
 print(Sys.time() - start.time)
@@ -200,8 +199,8 @@ results_BDMMA_noZI <-  Rmpi::mpi.parLapply(
   },
   dir_output = dir_output,
   tb_sim = tb_sim)
-Rmpi::mpi.close.Rslaves()
 save(results_BDMMA_noZI, 
      file = paste0(dir_output, "evaluate_BDMMA_noZI.RData"))
 print(Sys.time() - start.time)
+Rmpi::mpi.close.Rslaves()
 ```
