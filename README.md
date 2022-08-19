@@ -5,4 +5,4 @@ Siyuan Ma, Dmitry Shungin, Himel Mallick, Melanie Schirmer, Long Nguyen, Raivo K
 * The `rmds/` directory contains analysis scripts including combining otu tables and metadata files from multiple meta-analysis datasets. For the ease of maintenance and user access, a cleaned and pre-filtered phyloseq object at the genus level has been saved at `data/physeq/gennera.RData`. If downloading from github,
 the user should start with this file and `rm/ds/3-adjust_batch.Rmd`.
 
-* Many of the analyses in this repository use `MMUPHin` for data batch correction and meta-analysis. MMUPHin has had some interface changes since it was used for this paper. If trying to reproduce the analyses here, the user should download and install the correct old version, at https://github.com/biobakery/MMUPHin/releases/tag/v0.9
+* Many of the analyses in this repository use `MMUPHin` for data batch correction and meta-analysis. MMUPHin has had some interface changes since it was used for this paper. If trying to reproduce the analyses here, the user should download and install the correct old version, at [https://doi.org/10.5281/zenodo.7008567](https://doi.org/10.5281/zenodo.7008567)
